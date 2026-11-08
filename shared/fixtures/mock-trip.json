@@ -1,0 +1,11 @@
+{
+  "id": "mock-trip-1",
+  "name": "Paris Trip Weekend",
+  "startDate": "2026-11-20",
+  "endDate": "2026-11-22",
+  "memberIds": ["uid-sid"],
+  "stops": [
+    { "id": "stop-1", "title": "Louvre Museum", "start": "2026-11-20T10:00:00", "end": "2026-11-20T13:00:00", "placeName": "Louvre Museum", "lat": 48.8606, "lng": 2.3376, "type": "anchor" },
+    { "id": "stop-2", "title": "Eiffel Tower", "start": "2026-11-21T19:00:00", "end": "2026-11-21T21:00:00", "placeName": "Eiffel Tower", "lat": 48.8584, "lng": 2.2945, "type": "anchor" }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "title": "Travel Planner Schema (setup)",
+  "$defs": {
+    "Stop": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "start": { "type": "string" },
+        "end": { "type": "string" },
+        "placeName": { "type": "string" },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "type": { "type": "string", "enum": ["anchor", "flexible"] }
+      },
+      "required": ["id", "title", "start", "end", "placeName", "type"]
+    },
+    "Trip": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "memberIds": { "type": "array", "items": { "type": "string" } },
+        "stops": { "type": "array", "items": { "$ref": "#/$defs/Stop" } }
+      },
+      "required": ["id", "name", "startDate", "endDate", "stops"]
+    }
+  }
+}
