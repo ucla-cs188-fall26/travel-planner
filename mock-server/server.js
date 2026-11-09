@@ -1,3 +1,4 @@
+//mock backend for frontend testing
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
@@ -5,15 +6,30 @@ const path = require('path');
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
 
-const fixture = (name) =>
+const fixture = name =>
   JSON.parse(fs.readFileSync(path.join(__dirname, '../shared/fixtures', name), 'utf8'));
-const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+const delay = ms => new Promise(r => setTimeout(r, ms));
 
-app.get('/api/health', (req, res) => res.json({ ok: true }));
-app.get('/api/trip', (req, res) => res.json(fixture('mock-trip.json')));
-app.post('/api/chat', async (req, res) => { await delay(1000); res.json(fixture('chat-response.json')); });
-app.post('/api/itinerary/change', async (req, res) => { await delay(1000); res.json(fixture('change-response.json')); });
+//GET endpoints
+app.get('/api/health', (_req, res) => res.json({ ok: true }));
+app.get('/api/trip', (_req, res) => res.json(fixture('mock-trip.json')));
 
-app.listen(3000, () => console.log('Mock server on http://localhost:3000'));
+//POST /api/chat response
+app.post('/api/chat', async (req, res) => {
+  await delay(600);
+  const r = fixture('chat-response.json');
+  //ask questions until the 3rd user turn, then return the itinerary
+  const turns = (req.body.recentMessages || []).filter(m => m.role === 'user').length;
+  if (turns < 2) return res.json({ ...r, status: 'gathering', itinerary: null });
+  res.json(r);
+});
+
+//POST /api/itinerary/change response
+app.post('/api/itinerary/change', async (req, res) => {
+  await delay(800);
+  res.json(fixture('change-response.json'));
+});
+
+app.listen(3000, () => console.log('Mock API on http://localhost:3000'));

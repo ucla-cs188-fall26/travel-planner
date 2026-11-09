@@ -1,4 +1,3 @@
-// core/trip-store.ts
 import { Injectable, computed, signal } from '@angular/core';
 import { ChatMessage, Comparison, GroupPreferences, Question, Stop, Trip } from './models';
 
