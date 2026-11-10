@@ -36,4 +36,6 @@ body {
   margin: 0;
   height: 100%;
 }
-/* You can add global styles to this file, and also import other style files */
+
+.fc .is-selected { outline: 2px solid #000; outline-offset: -2px; } // Stop highlighted from the map or a click
+.fc .is-preview  { opacity: .75; border: 2px dashed #333 !important; } // LLM-proposed stops awaiting Accept/Revert

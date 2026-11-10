@@ -31,9 +31,10 @@
               }
             ],
             "styles": [
-              "@fullcalendar/angular/skeleton.css",
-              "@fullcalendar/angular/themes/monarch/theme.css",
-              "src/styles.scss"
+              "src/styles.scss",
+                "node_modules/@fullcalendar/angular/skeleton.css",
+                "node_modules/@fullcalendar/angular/themes/classic/theme.css",
+                "node_modules/@fullcalendar/angular/themes/classic/palette.css"
             ]
           },
           "configurations": {
