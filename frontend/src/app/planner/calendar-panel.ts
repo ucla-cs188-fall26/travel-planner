@@ -6,6 +6,7 @@ import interactionPlugin from '@fullcalendar/angular/interaction';
 import { format, addDays, parseISO, differenceInCalendarDays } from 'date-fns';
 import { MatButtonModule } from '@angular/material/button';
 import { TripStore } from '../core/trip-store';
+import { TripRepo } from '../core/trip-repo';
 
 // Converts FullCalendar returned value into a set format
 function toLocal(v: unknown): string {
@@ -24,7 +25,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   imports: [FullCalendarModule, MatButtonModule],
   template: `
     <div class="bar">  <!-- Small toolbar above the calendar -->
-      <button mat-button (click)="store.undo()">Undo</button>
+      <button mat-button (click)="store.undo(); repo.saveActiveStops()">Undo</button>
     </div>
     @if (store.activeTrip()) {
       <full-calendar [options]="options()" /> 
@@ -39,6 +40,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 export class CalendarPanel {
   store = inject(TripStore); 
   private cal = viewChild(FullCalendarComponent); 
+  repo = inject(TripRepo);
 
   // Stops - calendar events (recomputes when stops, selection or preview change)
   private events = computed(() => {
@@ -105,5 +107,6 @@ export class CalendarPanel {
     const end = toLocal(info.event.end ?? info.event.start);
     const day = differenceInCalendarDays(parseISO(start.slice(0, 10)), parseISO(trip.startDate)) + 1;
     this.store.updateStop(info.event.id, { start, end, day });
+    this.repo.saveActiveStops();
   }
 }

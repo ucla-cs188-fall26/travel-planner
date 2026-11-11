@@ -5,28 +5,29 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDialog } from '@angular/material/dialog';
 import { TripStore } from '../core/trip-store';
-import { TripSchema } from '../core/models';
+import { TripRepo } from '../core/trip-repo';
+import { Api } from '../core/api';
+import { MapsLoader } from '../core/maps-loader';
 import { NewTripDialog, NewTripResult } from './new-trip-dialog';
 
-// Left pane: list of trips styled like chat sessions, with new / rename / delete
+// Left pane: trips from Firestore, with new, rename, remove, and load demo features
 @Component({
   selector: 'app-trip-list',
   imports: [DatePipe, MatButtonModule, MatIconModule, MatMenuModule],
   template: `
     <div class="head">
-      <button mat-flat-button (click)="newTrip()"><mat-icon>add</mat-icon>New Trip</button>
+      <button mat-flat-button (click)="newTrip()"><mat-icon>add</mat-icon> New Trip</button>
+      <button mat-button (click)="loadDemo()" [disabled]="busy()">Load Demo Trip</button> <!-- Copies the mock fixture into Firestore -->
     </div>
     <ul class="list">
-      @for (t of store.trips(); track t.id) {   <!-- One row per trip -->
+      @for (t of store.trips(); track t.id) {
         <li [class.active]="t.id === store.activeTripId()" (click)="open(t.id)">
-          @if (editingId() === t.id) { 
+          @if (editingId() === t.id) {
             <input #name [value]="t.name" (click)="$event.stopPropagation()"
                    (keydown.enter)="rename(t.id, name.value)" (blur)="rename(t.id, name.value)" autofocus />
-          } @else {  <!-- Normal row: name + meta -->
+          } @else {
             <div class="name">{{ t.name }}</div>
-            <div class="meta">
-              {{ t.startDate | date:'MMM d' }}–{{ t.endDate | date:'MMM d' }} · {{ t.status }} · {{ t.memberIds.length }} 👤
-            </div>
+            <div class="meta">{{ t.startDate | date:'MMM d' }}–{{ t.endDate | date:'MMM d' }} · {{ t.status }} · {{ t.memberIds.length }} 👤</div>
           }
           <button mat-icon-button class="more" [matMenuTriggerFor]="m" (click)="$event.stopPropagation()">
             <mat-icon>more_horiz</mat-icon>
@@ -39,56 +40,67 @@ import { NewTripDialog, NewTripResult } from './new-trip-dialog';
       } @empty {
         <li class="empty">No trips yet</li>
       }
-    </ul>`,
+    </ul>
+    @if (error()) { <div class="err">{{ error() }}</div> }`,
   styles: [`
     :host{display:flex;flex-direction:column;height:100%;background:#f7f7f5}
-    .head{padding:12px}
-    .list{list-style:none;margin:0;padding:0 8px;overflow:auto}
+    .head{padding:12px;display:flex;flex-direction:column;gap:6px}
+    .list{list-style:none;margin:0;padding:0 8px;overflow:auto;flex:1}
     li{position:relative;padding:8px 36px 8px 10px;border-radius:8px;cursor:pointer}
     li:hover{background:#ecebe7} li.active{background:#e3e1db}
     .name{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .meta{font-size:12px;color:#666}
     .more{position:absolute;right:2px;top:4px;opacity:0} li:hover .more{opacity:1}
-    .empty{color:#888;cursor:default}`],
+    .empty{color:#888;cursor:default}.err{color:#b00020;padding:8px 12px;font-size:12px}`],
 })
 export class TripList {
   store = inject(TripStore);
-  private dialog = inject(MatDialog); 
+  private repo = inject(TripRepo);
+  private api = inject(Api);
+  private maps = inject(MapsLoader);
+  private dialog = inject(MatDialog);
   editingId = signal<string | null>(null);
+  busy = signal(false);
+  error = signal<string | null>(null);
 
-  // Select a trip so every pane shows it
+  // Select a trip and load its chat history
   open(id: string) {
     this.store.selectTrip(id);
+    this.repo.loadTripContext(id).catch(e => this.error.set(e.message));
   }
 
-  // Save a new name, or cancel if it's blank
-  rename(id: string, name: string) {
+  // Save a new name; if blank, then cancel
+  async rename(id: string, name: string) {
     this.editingId.set(null);
-    const t = this.store.trips().find(x => x.id === id);
-    if (t && name.trim()) this.store.upsertTrip({ ...t, name: name.trim() });
+    if (name.trim()) await this.repo.updateTrip(id, { name: name.trim() });
   }
 
-  // Delete after a confirmation
-  remove(id: string) {
-    if (confirm('Delete this trip?')) this.store.removeTrip(id);
+  // Delete after confirmation
+  async remove(id: string) {
+    if (confirm('Delete this trip?')) await this.repo.deleteTrip(id);
   }
 
-  // Open the questionnaire dialog, then create and open the trip
+  // Queue questionnaire dialog
   newTrip() {
-    this.dialog.open(NewTripDialog, { width: '520px' }).afterClosed().subscribe((r?: NewTripResult) => {
-      if (!r) return;                                                    
-      const trip = TripSchema.parse({
-        id: crypto.randomUUID(),
-        name: r.name,
-        ownerId: 'local',  //TODO: get real user UID from profile page when created
-        memberIds: ['local'], //TODO: look up memberEmails when profile page is created
-        startDate: r.startDate,
-        endDate: r.endDate,
-        details: { destination: r.destination, startDate: r.startDate, endDate: r.endDate },
-        anchors: r.anchors,
-      });
-      this.store.upsertTrip(trip);
-      this.open(trip.id);
+    this.dialog.open(NewTripDialog, { width: '520px' }).afterClosed().subscribe(async (r?: NewTripResult) => {
+      if (!r) return;
+      try { this.open(await this.repo.createTrip(r)); }
+      catch (e: any) { this.error.set(e.message); }
     });
+  }
+
+  // Fetch the fixture trip, resolve places, save as a new trip
+  async loadDemo() {
+    this.busy.set(true);
+    this.error.set(null);
+    try {
+      const trip = await this.api.getMockTrip();
+      const stops = await this.maps.resolveStops(trip.stops, String(trip.details['destination'] ?? ''));
+      this.open(await this.repo.importTrip({ ...trip, stops }));
+    } catch (e: any) {
+      this.error.set(e.message);
+    } finally {
+      this.busy.set(false);
+    }
   }
 }
