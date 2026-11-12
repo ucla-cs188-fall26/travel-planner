@@ -17,6 +17,7 @@ export class TripStore {
 
   //changes preview shown by LLM before user accepts
   readonly preview = signal<{ summary: string; stops: Stop[]; warnings: string[] } | null>(null);
+  readonly changeStatus = signal<'idle' | 'pending' | 'error'>('idle')
   private snapshotBeforeEdit: Stop[] | null = null;
   private history: Stop[][] = [];
 
@@ -55,6 +56,8 @@ export class TripStore {
     this.dayFilter.set(null);
     this.preview.set(null);
     this.history = [];
+    this.changeStatus.set('idle');
+    this.snapshotBeforeEdit = null;
   }
 
   //merge partial changes to currently opened trip
@@ -107,6 +110,8 @@ export class TripStore {
     if (this.snapshotBeforeEdit) this.setStops(this.snapshotBeforeEdit, false);
     this.snapshotBeforeEdit = null;
   }
+
+  clearEditSnapshot() { this.snapshotBeforeEdit = null; } //keep user edit as is when no preview exists
 
   //chat actions
   addMessage(m: ChatMessage) { this.messages.update(l => [...l, m]); }

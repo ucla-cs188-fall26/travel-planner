@@ -7,6 +7,7 @@ import { format, addDays, parseISO, differenceInCalendarDays } from 'date-fns';
 import { MatButtonModule } from '@angular/material/button';
 import { TripStore } from '../core/trip-store';
 import { TripRepo } from '../core/trip-repo';
+import { ChangeLoop } from '../core/change-loop'
 
 // Converts FullCalendar returned value into a set format
 function toLocal(v: unknown): string {
@@ -41,6 +42,7 @@ export class CalendarPanel {
   store = inject(TripStore); 
   private cal = viewChild(FullCalendarComponent); 
   repo = inject(TripRepo);
+  private change = inject(ChangeLoop);
 
   // Stops - calendar events (recomputes when stops, selection or preview change)
   private events = computed(() => {
@@ -108,5 +110,10 @@ export class CalendarPanel {
     const day = differenceInCalendarDays(parseISO(start.slice(0, 10)), parseISO(trip.startDate)) + 1;
     this.store.updateStop(info.event.id, { start, end, day });
     this.repo.saveActiveStops();
+    this.change.push({ // store dragged event information
+      stopId: info.event.id,
+      from: { start: toLocal(info.oldEvent.start), end: toLocal(info.oldEvent.end ?? info.oldEvent.start) },
+      to: { start, end },
+    });
   }
 }
