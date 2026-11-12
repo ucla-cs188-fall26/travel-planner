@@ -1,11 +1,12 @@
 import { Injectable, effect, inject } from '@angular/core';
-import { Firestore, collection, collectionData, doc, addDoc, setDoc, updateDoc, deleteDoc,
+import { getDoc, Firestore, collection, collectionData, doc, addDoc, setDoc, updateDoc, deleteDoc,
          query, where, orderBy, getDocs, limit, serverTimestamp,
        } from '@angular/fire/firestore';
 import { Subscription } from 'rxjs';
 import { AuthService } from './auth';
 import { TripStore } from './trip-store';
-import { ChatMessage, Trip, TripSchema } from './models';
+import { Preferences, ChatMessage, Trip, TripSchema } from './models';
+import { mergeGroupPreferences } from './group-prefs';
 
 // Input from the new-trip dialog
 export interface NewTripInput {
@@ -88,11 +89,45 @@ export class TripRepo {
     return setDoc(doc(this.db, 'trips', tripId, 'messages', m.id), m);
   }
 
-  // When a trip opens, load its chat history
+  // When a trip opens: load chat history and the group's merged preferences
   async loadTripContext(tripId: string) {
     this.store.setMessages([]);
+    this.store.groupPrefs.set(null);
     const snap = await getDocs(query(collection(this.db, 'trips', tripId, 'messages'), orderBy('createdAt'), limit(200)));
     this.store.setMessages(snap.docs.map(d => d.data() as ChatMessage));
+    await this.loadGroupPrefs(tripId);
+  }
+
+  // Reads the trip from Firestore, loads members, and merges preferences
+  async loadGroupPrefs(tripId: string) {
+    const tripSnap = await getDoc(doc(this.db, 'trips', tripId));
+    const parsed = TripSchema.safeParse({ ...tripSnap.data(), id: tripId });
+    if (!parsed.success) return;
+    const members = await this.loadMembers(parsed.data.memberIds);
+    if (this.store.activeTripId() === tripId) {
+      this.store.groupPrefs.set(mergeGroupPreferences(members, parsed.data.overrides));
+    }
+  }
+
+  // Adds a member by email (must have signed in), then refreshes the group panel
+  async addMember(tripId: string, email: string) {
+    const [uid] = await this.lookupUids([email]);
+    if (!uid) throw new Error(`${email} hasn't signed in to the app yet.`);
+    const tripSnap = await getDoc(doc(this.db, 'trips', tripId));
+    const memberIds: string[] = tripSnap.data()?.['memberIds'] ?? [];
+    if (memberIds.includes(uid)) return;
+    await this.updateTrip(tripId, { memberIds: [...memberIds, uid] });
+    await this.loadGroupPrefs(tripId);
+  }
+
+  // retrieve name and preferences for each member
+  private async loadMembers(uids: string[]) {
+    if (!uids.length) return [];
+    const snap = await getDocs(query(collection(this.db, 'users'), where('uid', 'in', uids.slice(0, 30))));
+    return snap.docs.map(d => {
+      const u = d.data();
+      return { uid: d.id, name: (u['displayName'] ?? u['email'] ?? 'Member') as string, preferences: (u['preferences'] ?? {}) as Partial<Preferences> };
+    });
   }
 
   // retrieve UIDs of users who have signed in at least once

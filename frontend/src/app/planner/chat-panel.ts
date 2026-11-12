@@ -10,13 +10,15 @@ import { TripRepo } from '../core/trip-repo';
 import { MapsLoader } from '../core/maps-loader';
 import { ComparisonCard } from './comparison-card';
 import { ChatMessage, Question, Trip } from '../core/models';
+import { GroupPrefsPanel } from './group-prefs-panel'
 
 // Center pane: conversation with the planner, question tokens, comparison cards
 @Component({
   selector: 'app-chat-panel',
-  imports: [FormsModule, MarkdownComponent, MatButtonModule, MatChipsModule, MatProgressBarModule, ComparisonCard],
+  imports: [FormsModule, MarkdownComponent, MatButtonModule, MatChipsModule, MatProgressBarModule, ComparisonCard, GroupPrefsPanel],
   template: `
     @if (store.activeTrip()) {
+      <app-group-prefs-panel />
       <div class="log" #log> <!-- Message history -->
         @if (store.messages().length === 0) {
           <div class="hint">Tell the planner about your trip, e.g. "We want a relaxed 3 days with good food."</div>
