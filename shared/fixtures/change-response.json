@@ -1,4 +1,10 @@
 {
-  "summary": "No changes needed.",
-  "changes": []
+  "summary": "You pushed the Orsay visit later, so I moved lunch to 12:30 nearby and shortened the afternoon walk to keep the sunset at the Eiffel Tower.",
+  "changes": [
+    { "id": "s4", "day": 2, "title": "Musée d'Orsay", "start": "2026-11-21T11:00:00", "end": "2026-11-21T13:00:00",
+      "place": { "name": "Musée d'Orsay" }, "category": "sight", "priceRange": "€16" },
+    { "id": "s7", "day": 2, "title": "Lunch at Café de l'Empire", "start": "2026-11-21T13:15:00", "end": "2026-11-21T14:15:00",
+      "place": { "name": "Café de l'Empire Paris" }, "category": "food", "priceRange": "€20–30" }
+  ],
+  "warnings": ["Café de l'Empire can have a wait at lunch; consider booking."]
 }

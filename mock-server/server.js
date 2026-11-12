@@ -20,10 +20,13 @@ app.get('/api/trip', (_req, res) => res.json(fixture('mock-trip.json')));
 app.post('/api/chat', async (req, res) => {
   await delay(600);
   const r = fixture('chat-response.json');
-  //ask questions until the 3rd user turn, then return the itinerary
-  const turns = (req.body.recentMessages || []).filter(m => m.role === 'user').length;
-  if (turns < 2) return res.json({ ...r, status: 'gathering', itinerary: null });
-  res.json(r);
+  const turns = (req.body.recentMessages || []).filter(m => m.role === 'user').length; // Includes the current message
+  if (turns === 1) return res.json({ ...r, status: 'gathering', comparison: null, itinerary: null });
+  if (turns === 2) return res.json({
+    ...r, status: 'gathering', question: null, itinerary: null,
+    reply: 'Got it. One trade-off before I build the plan: where should you stay?',
+  });
+  res.json({ ...r, question: null, comparison: null });
 });
 
 //POST /api/itinerary/change response
