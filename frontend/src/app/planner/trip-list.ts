@@ -65,6 +65,7 @@ export class TripList {
 
   // Select a trip and load its chat history
   open(id: string) {
+    this.error.set(null);
     this.store.selectTrip(id);
     this.repo.loadTripContext(id).catch(e => this.error.set(e.message));
   }
@@ -72,12 +73,16 @@ export class TripList {
   // Save a new name; if blank, then cancel
   async rename(id: string, name: string) {
     this.editingId.set(null);
-    if (name.trim()) await this.repo.updateTrip(id, { name: name.trim() });
+    if (!name.trim()) return;
+    try { await this.repo.updateTrip(id, { name: name.trim() }); }
+    catch (e: any) { this.error.set(e.message); }
   }
 
-  // Delete after confirmation
+  // Delete after confirmation; only the owner is allowed by the rules
   async remove(id: string) {
-    if (confirm('Delete this trip?')) await this.repo.deleteTrip(id);
+    if (!confirm('Delete this trip?')) return;
+    try { await this.repo.deleteTrip(id); }
+    catch { this.error.set('Only the trip owner can delete it.'); }
   }
 
   // Queue questionnaire dialog

@@ -7,7 +7,8 @@ import { format, addDays, parseISO, differenceInCalendarDays } from 'date-fns';
 import { MatButtonModule } from '@angular/material/button';
 import { TripStore } from '../core/trip-store';
 import { TripRepo } from '../core/trip-repo';
-import { ChangeLoop } from '../core/change-loop'
+import { ChangeLoop } from '../core/change-loop';
+import { MatIconModule } from '@angular/material/icon';
 
 // Converts FullCalendar returned value into a set format
 function toLocal(v: unknown): string {
@@ -23,11 +24,29 @@ const CATEGORY_COLORS: Record<string, string> = {
 // Top-right pane: time grid for the trip days, with drag, resize and click-to-select
 @Component({
   selector: 'app-calendar-panel',
-  imports: [FullCalendarModule, MatButtonModule],
+  imports: [FullCalendarModule, MatButtonModule, MatIconModule],
   template: `
     <div class="bar">  <!-- Small toolbar above the calendar -->
       <button mat-button (click)="store.undo(); repo.saveActiveStops()">Undo</button>
     </div>
+    @if (store.selectedStop(); as s) {                                                   <!-- Details for the clicked stop -->
+      <div class="details">
+        <div class="d-title">{{ s.title }}</div>
+        <div class="d-meta">
+          {{ s.start.slice(11, 16) }}–{{ s.end.slice(11, 16) }} · Day {{ s.day }}
+          @if (s.priceRange) { · {{ s.priceRange }} }
+          @if (s.place.address) { · {{ s.place.address }} }
+        </div>
+        @if (s.notes) { <div class="d-notes">{{ s.notes }}</div> }
+        <div class="d-actions">
+          @if (s.sourceUrl) { <a [href]="s.sourceUrl" target="_blank" rel="noopener">Source ↗</a> }
+          <button mat-button (click)="toggleLock(s.id, !s.locked)">
+            <mat-icon>{{ s.locked ? 'lock' : 'lock_open' }}</mat-icon> {{ s.locked ? 'Unlock' : 'Lock as must-do' }}
+          </button>
+          <button mat-button (click)="store.selectedStopId.set(null)">Close</button>
+        </div>
+      </div>
+    }
     @if (store.activeTrip()) {
       <full-calendar [options]="options()" /> 
     } @else {
@@ -36,7 +55,10 @@ const CATEGORY_COLORS: Record<string, string> = {
   styles: [`:host{display:flex;flex-direction:column;flex:1;min-height:0}
             .bar{display:flex;justify-content:flex-end;padding:2px 6px}
             full-calendar{flex:1;min-height:0;font-size:12px}
-            .empty{padding:24px;color:#888}`],
+            .empty{padding:24px;color:#888}
+            .details{padding:6px 10px;border-bottom:1px solid #eee;font-size:12px}
+            .d-title{font-weight:600}.d-meta{color:#555}.d-notes{margin-top:2px}
+            .d-actions{display:flex;gap:6px;align-items:center;margin-top:2px}`],
 })
 export class CalendarPanel {
   store = inject(TripStore); 
@@ -115,5 +137,12 @@ export class CalendarPanel {
       from: { start: toLocal(info.oldEvent.start), end: toLocal(info.oldEvent.end ?? info.oldEvent.start) },
       to: { start, end },
     });
+  }
+
+  // Lock/unlock a stop as an anchor
+  toggleLock(id: string, locked: boolean) {
+    this.store.updateStop(id, { locked });
+    this.store.clearEditSnapshot();
+    this.repo.saveActiveStops();
   }
 }
