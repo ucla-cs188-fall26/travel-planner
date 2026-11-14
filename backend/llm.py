@@ -22,7 +22,7 @@ def _clean(text:str) -> str:
     Strip JSON outputs with json fences
     """
     text = text.strip()
-    if text.startwith("```"):
+    if text.startswith("```"):
         text = text.split("\n", 1)[1] if "\n" in text else ""
         text = text.rsplit("```", 1)[0]
     return text.strip()
