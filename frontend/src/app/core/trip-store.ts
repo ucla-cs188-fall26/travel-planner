@@ -15,8 +15,11 @@ export class TripStore {
   readonly pendingComparison = signal<Comparison | null>(null); //preference comparison waiting for a pick
   readonly loading = signal(false);
 
-  //changes preview shown by LLM before user accepts
-  readonly preview = signal<{ summary: string; stops: Stop[]; warnings: string[] } | null>(null);
+  // Proposed stops are a display overlay; activeTrip.stops stays committed until explicit acceptance.
+  readonly preview = signal<{
+    summary: string; stops: Stop[]; warnings: string[]; source: 'chat' | 'solver';
+    tripId: string; baseStops: string;
+  } | null>(null);
   readonly changeStatus = signal<'idle' | 'pending' | 'error'>('idle')
   private snapshotBeforeEdit: Stop[] | null = null;
   private history: Stop[][] = [];
@@ -91,17 +94,10 @@ export class TripStore {
 
   //change preview actions: accept/revert
   //Show LLM's proposed itinerary without finalizing it
-  showPreview(summary: string, stops: Stop[], warnings: string[]) {
-    this.preview.set({ summary, stops, warnings });
-  }
-
-  //apply the proposed stops output and clear preview
-  acceptPreview() {
-    const p = this.preview();
-    if (!p) return;
-    this.preview.set(null);
-    this.setStops(p.stops);
-    this.snapshotBeforeEdit = null;
+  showPreview(summary: string, stops: Stop[], warnings: string[], source: 'chat' | 'solver' = 'chat') {
+    const trip = this.activeTrip();
+    if (!trip) return;
+    this.preview.set({ summary, stops, warnings, source, tripId: trip.id, baseStops: JSON.stringify(trip.stops) });
   }
 
   //discard the current changes and revert to original

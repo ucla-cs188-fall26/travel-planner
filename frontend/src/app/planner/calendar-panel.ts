@@ -9,6 +9,7 @@ import { TripStore } from '../core/trip-store';
 import { TripRepo } from '../core/trip-repo';
 import { ChangeLoop } from '../core/change-loop';
 import { MatIconModule } from '@angular/material/icon';
+import { ConstraintPlanner } from '../core/constraint-planner';
 
 // Converts FullCalendar returned value into a set format
 function toLocal(v: unknown): string {
@@ -27,7 +28,10 @@ const CATEGORY_COLORS: Record<string, string> = {
   imports: [FullCalendarModule, MatButtonModule, MatIconModule],
   template: `
     <div class="bar">  <!-- Small toolbar above the calendar -->
-      <button mat-button (click)="store.undo(); repo.saveActiveStops()">Undo</button>
+      @if (store.preview()) {
+        <span>Proposal preview · Your saved itinerary stays unchanged until you accept</span>
+        <button mat-button [disabled]="planner.applying()" (click)="planner.dismiss()">Show saved itinerary</button>
+      }
     </div>
     @if (store.selectedStop(); as s) {                                                   <!-- Details for the clicked stop -->
       <div class="details">
@@ -40,7 +44,7 @@ const CATEGORY_COLORS: Record<string, string> = {
         @if (s.notes) { <div class="d-notes">{{ s.notes }}</div> }
         <div class="d-actions">
           @if (s.sourceUrl) { <a [href]="s.sourceUrl" target="_blank" rel="noopener">Source ↗</a> }
-          <button mat-button (click)="toggleLock(s.id, !s.locked)">
+          <button mat-button [disabled]="!!store.preview() || planner.busy() || planner.applying()" (click)="toggleLock(s.id, !s.locked)">
             <mat-icon>{{ s.locked ? 'lock' : 'lock_open' }}</mat-icon> {{ s.locked ? 'Unlock' : 'Lock as must-do' }}
           </button>
           <button mat-button (click)="store.selectedStopId.set(null)">Close</button>
@@ -65,6 +69,7 @@ export class CalendarPanel {
   private cal = viewChild(FullCalendarComponent); 
   repo = inject(TripRepo);
   private change = inject(ChangeLoop);
+  planner = inject(ConstraintPlanner);
 
   // Stops - calendar events (recomputes when stops, selection or preview change)
   private events = computed(() => {
@@ -75,7 +80,7 @@ export class CalendarPanel {
       title: s.locked ? `🔒 ${s.title}` : s.title,  // Lock icon marks anchors
       start: s.start,
       end: s.end,
-      editable: !s.locked && !previewing,  // Anchors and previews can't be dragged
+      editable: !s.locked && !previewing && !this.planner.busy() && !this.planner.applying(),
       color: CATEGORY_COLORS[s.category] ?? '#3d5a80',
       className: [s.id === sel ? 'is-selected' : '', previewing ? 'is-preview' : ''].join(' ').trim(),
     }));
@@ -123,15 +128,13 @@ export class CalendarPanel {
     });
   }
 
-  //writes a drag/resize back into the store, recomputing the stop's day number
+  // A drag is a requested edit. Restore the current event while a suggestion is computed.
   private onMoved(info: any) {
     const trip = this.store.activeTrip();
     if (!trip) return;
     const start = toLocal(info.event.start);
     const end = toLocal(info.event.end ?? info.event.start);
-    const day = differenceInCalendarDays(parseISO(start.slice(0, 10)), parseISO(trip.startDate)) + 1;
-    this.store.updateStop(info.event.id, { start, end, day });
-    this.repo.saveActiveStops();
+    info.revert();
     this.change.push({ // store dragged event information
       stopId: info.event.id,
       from: { start: toLocal(info.oldEvent.start), end: toLocal(info.oldEvent.end ?? info.oldEvent.start) },

@@ -1,2 +1,8 @@
 #Node
 node_modules/
+
+# Local Python solver environment
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/

@@ -7,7 +7,6 @@ import { MatDialog } from '@angular/material/dialog';
 import { TripStore } from '../core/trip-store';
 import { TripRepo } from '../core/trip-repo';
 import { Api } from '../core/api';
-import { MapsLoader } from '../core/maps-loader';
 import { NewTripDialog, NewTripResult } from './new-trip-dialog';
 
 // Left pane: trips from Firestore, with new, rename, remove, and load demo features
@@ -57,7 +56,6 @@ export class TripList {
   store = inject(TripStore);
   private repo = inject(TripRepo);
   private api = inject(Api);
-  private maps = inject(MapsLoader);
   private dialog = inject(MatDialog);
   editingId = signal<string | null>(null);
   busy = signal(false);
@@ -94,14 +92,13 @@ export class TripList {
     });
   }
 
-  // Fetch the fixture trip, resolve places, save as a new trip
+  // Keep the sample's identity intact; the solver grounds proposals to its fixed catalog.
   async loadDemo() {
     this.busy.set(true);
     this.error.set(null);
     try {
       const trip = await this.api.getMockTrip();
-      const stops = await this.maps.resolveStops(trip.stops, String(trip.details['destination'] ?? ''));
-      this.open(await this.repo.importTrip({ ...trip, stops }));
+      this.open(await this.repo.importTrip(trip));
     } catch (e: any) {
       this.error.set(e.message);
     } finally {

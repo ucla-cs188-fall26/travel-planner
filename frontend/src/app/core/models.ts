@@ -50,6 +50,10 @@ export const TripSchema = z.object({
   anchors: z.array(z.string()).default([]),
   overrides: PreferencesSchema.partial().default({}),
   stops: z.array(StopSchema).default([]),
+  acceptedProposal: z.object({
+    id: z.string(), inputVersion: z.string(), catalogId: z.string(),
+    acceptedBy: z.string(), acceptedAt: z.number(),
+  }).optional(),
 });
 
 //follow-up question layout from LLM

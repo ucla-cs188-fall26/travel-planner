@@ -1,0 +1,424 @@
+{
+  "id": "paris-sample-v1",
+  "destination": "Paris",
+  "currency": "EUR",
+  "costUnit": "cents per person",
+  "timezone": "Europe/Paris",
+  "description": "Fixed Paris demonstration data, not live prices, opening hours or Maps routes. All travel is walking from/to a sample Place Vendôme base. Opening hours repeat every day; lunch is 11:30–14:30. At most 3 days and 5 members.",
+  "places": [
+    {
+      "id": "louvre",
+      "title": "Louvre Museum",
+      "category": "sight",
+      "durationMinutes": 90,
+      "cost": 2200,
+      "openMinute": 540,
+      "closeMinute": 1080,
+      "lat": 48.8606,
+      "lng": 2.3376,
+      "tags": [
+        "art",
+        "history"
+      ],
+      "aliases": [
+        "Louvre",
+        "루브르 박물관"
+      ]
+    },
+    {
+      "id": "eiffel",
+      "title": "Eiffel Tower",
+      "category": "sight",
+      "durationMinutes": 60,
+      "cost": 3000,
+      "openMinute": 540,
+      "closeMinute": 1320,
+      "lat": 48.8584,
+      "lng": 2.2945,
+      "tags": [
+        "history",
+        "culture"
+      ],
+      "aliases": [
+        "에펠탑"
+      ]
+    },
+    {
+      "id": "orsay",
+      "title": "Musée d’Orsay",
+      "category": "sight",
+      "durationMinutes": 90,
+      "cost": 1600,
+      "openMinute": 570,
+      "closeMinute": 1080,
+      "lat": 48.86,
+      "lng": 2.3266,
+      "tags": [
+        "art",
+        "culture"
+      ],
+      "aliases": [
+        "Musée d'Orsay",
+        "오르세 미술관"
+      ]
+    },
+    {
+      "id": "tuileries",
+      "title": "Jardin des Tuileries",
+      "category": "free",
+      "durationMinutes": 45,
+      "cost": 0,
+      "openMinute": 480,
+      "closeMinute": 1200,
+      "lat": 48.8635,
+      "lng": 2.3275,
+      "tags": [
+        "nature"
+      ],
+      "aliases": [
+        "Tuileries Garden",
+        "튈르리 정원"
+      ]
+    },
+    {
+      "id": "palais-royal",
+      "title": "Palais Royal Garden",
+      "category": "free",
+      "durationMinutes": 40,
+      "cost": 0,
+      "openMinute": 480,
+      "closeMinute": 1200,
+      "lat": 48.8651,
+      "lng": 2.3372,
+      "tags": [
+        "nature",
+        "history"
+      ],
+      "aliases": [
+        "Palais Royal"
+      ]
+    },
+    {
+      "id": "sainte-chapelle",
+      "title": "Sainte-Chapelle",
+      "category": "sight",
+      "durationMinutes": 45,
+      "cost": 1300,
+      "openMinute": 540,
+      "closeMinute": 1020,
+      "lat": 48.8554,
+      "lng": 2.345,
+      "tags": [
+        "history",
+        "culture"
+      ],
+      "aliases": []
+    },
+    {
+      "id": "rodin",
+      "title": "Musée Rodin",
+      "category": "sight",
+      "durationMinutes": 60,
+      "cost": 1400,
+      "openMinute": 600,
+      "closeMinute": 1080,
+      "lat": 48.8552,
+      "lng": 2.3158,
+      "tags": [
+        "art",
+        "nature"
+      ],
+      "aliases": []
+    },
+    {
+      "id": "luxembourg",
+      "title": "Luxembourg Garden",
+      "category": "free",
+      "durationMinutes": 45,
+      "cost": 0,
+      "openMinute": 480,
+      "closeMinute": 1200,
+      "lat": 48.8462,
+      "lng": 2.3372,
+      "tags": [
+        "nature"
+      ],
+      "aliases": []
+    },
+    {
+      "id": "montmartre",
+      "title": "Montmartre & Sacré-Cœur",
+      "category": "activity",
+      "durationMinutes": 75,
+      "cost": 0,
+      "openMinute": 540,
+      "closeMinute": 1200,
+      "lat": 48.8867,
+      "lng": 2.3431,
+      "tags": [
+        "culture",
+        "history"
+      ],
+      "aliases": [
+        "Sacré-Cœur",
+        "Sacre Coeur"
+      ]
+    },
+    {
+      "id": "le-fumoir",
+      "title": "Le Fumoir",
+      "category": "food",
+      "durationMinutes": 45,
+      "cost": 2800,
+      "openMinute": 690,
+      "closeMinute": 870,
+      "lat": 48.8619,
+      "lng": 2.3408,
+      "tags": [
+        "food",
+        "culture"
+      ],
+      "aliases": [
+        "Lunch at Le Fumoir"
+      ]
+    },
+    {
+      "id": "empire",
+      "title": "Café de l’Empire Paris",
+      "category": "food",
+      "durationMinutes": 45,
+      "cost": 2400,
+      "openMinute": 690,
+      "closeMinute": 870,
+      "lat": 48.8592,
+      "lng": 2.328,
+      "tags": [
+        "food"
+      ],
+      "aliases": [
+        "Café de l'Empire Paris"
+      ]
+    },
+    {
+      "id": "opera-lunch",
+      "title": "Sample Opéra Lunch",
+      "category": "food",
+      "durationMinutes": 45,
+      "cost": 1800,
+      "openMinute": 690,
+      "closeMinute": 870,
+      "lat": 48.8671,
+      "lng": 2.3304,
+      "tags": [
+        "food"
+      ],
+      "aliases": []
+    }
+  ],
+  "base": {
+    "id": "base",
+    "title": "Sample base near Place Vendôme",
+    "lat": 48.8675,
+    "lng": 2.3293
+  },
+  "routes": {
+    "base": {
+      "base": 0,
+      "louvre": 14,
+      "eiffel": 38,
+      "orsay": 12,
+      "tuileries": 7,
+      "palais-royal": 9,
+      "sainte-chapelle": 24,
+      "rodin": 23,
+      "luxembourg": 34,
+      "montmartre": 32,
+      "le-fumoir": 15,
+      "empire": 13,
+      "opera-lunch": 2
+    },
+    "louvre": {
+      "base": 14,
+      "louvre": 0,
+      "eiffel": 43,
+      "orsay": 11,
+      "tuileries": 11,
+      "palais-royal": 7,
+      "sainte-chapelle": 11,
+      "rodin": 24,
+      "luxembourg": 22,
+      "montmartre": 40,
+      "le-fumoir": 4,
+      "empire": 10,
+      "opera-lunch": 13
+    },
+    "eiffel": {
+      "base": 38,
+      "louvre": 43,
+      "eiffel": 0,
+      "orsay": 32,
+      "tuileries": 34,
+      "palais-royal": 44,
+      "sainte-chapelle": 51,
+      "rodin": 22,
+      "luxembourg": 47,
+      "montmartre": 65,
+      "le-fumoir": 47,
+      "empire": 34,
+      "opera-lunch": 38
+    },
+    "orsay": {
+      "base": 12,
+      "louvre": 11,
+      "eiffel": 32,
+      "orsay": 0,
+      "tuileries": 6,
+      "palais-royal": 14,
+      "sainte-chapelle": 20,
+      "rodin": 13,
+      "luxembourg": 24,
+      "montmartre": 44,
+      "le-fumoir": 15,
+      "empire": 2,
+      "opera-lunch": 12
+    },
+    "tuileries": {
+      "base": 7,
+      "louvre": 11,
+      "eiffel": 34,
+      "orsay": 6,
+      "tuileries": 0,
+      "palais-royal": 10,
+      "sainte-chapelle": 22,
+      "rodin": 18,
+      "luxembourg": 28,
+      "montmartre": 39,
+      "le-fumoir": 14,
+      "empire": 7,
+      "opera-lunch": 7
+    },
+    "palais-royal": {
+      "base": 9,
+      "louvre": 7,
+      "eiffel": 44,
+      "orsay": 14,
+      "tuileries": 10,
+      "palais-royal": 0,
+      "sainte-chapelle": 17,
+      "rodin": 26,
+      "luxembourg": 29,
+      "montmartre": 34,
+      "le-fumoir": 6,
+      "empire": 13,
+      "opera-lunch": 8
+    },
+    "sainte-chapelle": {
+      "base": 24,
+      "louvre": 11,
+      "eiffel": 51,
+      "orsay": 20,
+      "tuileries": 22,
+      "palais-royal": 17,
+      "sainte-chapelle": 0,
+      "rodin": 29,
+      "luxembourg": 16,
+      "montmartre": 48,
+      "le-fumoir": 11,
+      "empire": 18,
+      "opera-lunch": 23
+    },
+    "rodin": {
+      "base": 23,
+      "louvre": 24,
+      "eiffel": 22,
+      "orsay": 13,
+      "tuileries": 18,
+      "palais-royal": 26,
+      "sainte-chapelle": 29,
+      "rodin": 0,
+      "luxembourg": 26,
+      "montmartre": 55,
+      "le-fumoir": 27,
+      "empire": 14,
+      "opera-lunch": 24
+    },
+    "luxembourg": {
+      "base": 34,
+      "louvre": 22,
+      "eiffel": 47,
+      "orsay": 24,
+      "tuileries": 28,
+      "palais-royal": 29,
+      "sainte-chapelle": 16,
+      "rodin": 26,
+      "luxembourg": 0,
+      "montmartre": 62,
+      "le-fumoir": 24,
+      "empire": 22,
+      "opera-lunch": 33
+    },
+    "montmartre": {
+      "base": 32,
+      "louvre": 40,
+      "eiffel": 65,
+      "orsay": 44,
+      "tuileries": 39,
+      "palais-royal": 34,
+      "sainte-chapelle": 48,
+      "rodin": 55,
+      "luxembourg": 62,
+      "montmartre": 0,
+      "le-fumoir": 38,
+      "empire": 45,
+      "opera-lunch": 33
+    },
+    "le-fumoir": {
+      "base": 15,
+      "louvre": 4,
+      "eiffel": 47,
+      "orsay": 15,
+      "tuileries": 14,
+      "palais-royal": 6,
+      "sainte-chapelle": 11,
+      "rodin": 27,
+      "luxembourg": 24,
+      "montmartre": 38,
+      "le-fumoir": 0,
+      "empire": 14,
+      "opera-lunch": 13
+    },
+    "empire": {
+      "base": 13,
+      "louvre": 10,
+      "eiffel": 34,
+      "orsay": 2,
+      "tuileries": 7,
+      "palais-royal": 13,
+      "sainte-chapelle": 18,
+      "rodin": 14,
+      "luxembourg": 22,
+      "montmartre": 45,
+      "le-fumoir": 14,
+      "empire": 0,
+      "opera-lunch": 13
+    },
+    "opera-lunch": {
+      "base": 2,
+      "louvre": 13,
+      "eiffel": 38,
+      "orsay": 12,
+      "tuileries": 7,
+      "palais-royal": 8,
+      "sainte-chapelle": 23,
+      "rodin": 24,
+      "luxembourg": 33,
+      "montmartre": 33,
+      "le-fumoir": 13,
+      "empire": 13,
+      "opera-lunch": 0
+    }
+  },
+  "maxStopsPerDay": 5,
+  "dailyStartMinute": 480,
+  "dailyEndMinute": 1320
+}

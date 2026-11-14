@@ -1,0 +1,63 @@
+<mat-expansion-panel class="constraint-panel" [expanded]="true">
+  <mat-expansion-panel-header>
+    <mat-panel-title>Trip constraints</mat-panel-title>
+    <mat-panel-description>{{ answeredCount() }}/{{ questions.length }} answered</mat-panel-description>
+  </mat-expansion-panel-header>
+    <p class="sample">Paris sample data · EUR per person · Local time: Europe/Paris<br>Costs cover visits and meals. Flights and accommodation are excluded.</p>
+    <ul class="members" aria-label="Response status by member">
+      @for (uid of store.activeTrip()?.memberIds ?? []; track uid) {
+        <li><strong>{{ memberName(uid) }}</strong><span>{{ memberProgress(uid) }}</span></li>
+      }
+    </ul>
+    @if (sessions.loading()) { <p role="status">Loading trip constraints…</p> }
+    @if (activeQuestion(); as q) {
+      <div class="question" aria-live="polite">
+        <h3>{{ q.title }}</h3>
+        <p class="muted">Your choices are saved as preferences. Mark any conditions that must be met as Required in the final review.</p>
+        <div class="choices">
+          <div class="choice"><strong>A · {{ q.A.label }}</strong><p>{{ q.A.description }}</p><button mat-flat-button type="button" [disabled]="sessions.saving() || sessions.loading()" (click)="answer(q.id, 'A')">Choose A</button></div>
+          <div class="choice"><strong>B · {{ q.B.label }}</strong><p>{{ q.B.description }}</p><button mat-flat-button type="button" [disabled]="sessions.saving() || sessions.loading()" (click)="answer(q.id, 'B')">Choose B</button></div>
+        </div>
+        <button mat-button class="indifferent" type="button" [disabled]="sessions.saving() || sessions.loading()" (click)="answer(q.id, 'indifferent')">No preference</button>
+        <p class="muted">“No preference” records your answer without adding a preference for this question.</p>
+      </div>
+    }
+    @if (answeredCount()) {
+      <details class="answered"><summary>Review or edit my answers</summary>
+        @for (q of questions; track q.id) {
+          <button mat-button type="button" class="answer-row" [disabled]="sessions.saving()" (click)="editingQuestion.set(q.id)"><span>{{ q.title }}</span><strong>{{ answerLabel(q.id) }} · Edit</strong></button>
+        }
+      </details>
+    }
+    @if (canReview()) {
+      <details class="review" open><summary>Review my constraints</summary>
+      <form (ngSubmit)="confirm()">
+        <p class="muted">Leave a field blank to add no limit. Required conditions must be met; if they conflict, we will explain why no itinerary is possible. Other conditions are preferences to satisfy where possible.</p>
+        <fieldset [disabled]="sessions.saving() || sessions.loading()">
+          <div class="review-row"><mat-form-field><mat-label>Daily budget per person (€)</mat-label><input matInput id="constraint-budget" type="number" min="0" max="10000" step="0.01" name="budget" [(ngModel)]="draft.budgetEuros" (ngModelChange)="markDirty()" placeholder="No limit" [disabled]="sessions.saving() || sessions.loading()"></mat-form-field><mat-checkbox name="budgetHard" [(ngModel)]="draft.hard.budget_max" (ngModelChange)="markDirty()" [disabled]="sessions.saving() || sessions.loading() || draft.budgetEuros === null">Required</mat-checkbox></div>
+          <div class="review-row"><mat-form-field><mat-label>Earliest departure</mat-label><input matInput id="constraint-start" type="time" name="dayStart" [(ngModel)]="draft.dayStart" (ngModelChange)="markDirty()" [disabled]="sessions.saving() || sessions.loading()"></mat-form-field><mat-checkbox name="startHard" [(ngModel)]="draft.hard.day_start_min" (ngModelChange)="markDirty()" [disabled]="sessions.saving() || sessions.loading() || !draft.dayStart">Required</mat-checkbox></div>
+          <div class="review-row"><mat-form-field><mat-label>Latest return</mat-label><input matInput id="constraint-end" type="time" name="dayEnd" [(ngModel)]="draft.dayEnd" (ngModelChange)="markDirty()" [disabled]="sessions.saving() || sessions.loading()"></mat-form-field><mat-checkbox name="endHard" [(ngModel)]="draft.hard.day_end_max" (ngModelChange)="markDirty()" [disabled]="sessions.saving() || sessions.loading() || !draft.dayEnd">Required</mat-checkbox></div>
+          <div class="review-row"><mat-form-field><mat-label>Daily walking limit (minutes)</mat-label><input matInput id="constraint-walk" type="number" min="0" max="1440" step="1" name="walking" [(ngModel)]="draft.walking" (ngModelChange)="markDirty()" placeholder="No limit" [disabled]="sessions.saving() || sessions.loading()"></mat-form-field><mat-checkbox name="walkingHard" [(ngModel)]="draft.hard.walking_max" (ngModelChange)="markDirty()" [disabled]="sessions.saving() || sessions.loading() || draft.walking === null">Required</mat-checkbox></div>
+          <div class="review-row"><mat-form-field><mat-label>Daily visit limit (excluding meals)</mat-label><input matInput id="constraint-activities" type="number" min="0" max="20" step="1" name="activities" [(ngModel)]="draft.activities" (ngModelChange)="markDirty()" placeholder="No limit" [disabled]="sessions.saving() || sessions.loading()"></mat-form-field><mat-checkbox name="activitiesHard" [(ngModel)]="draft.hard.max_activities" (ngModelChange)="markDirty()" [disabled]="sessions.saving() || sessions.loading() || draft.activities === null">Required</mat-checkbox></div>
+          <h4>Interests · Preferences</h4>
+          <div class="tags">@for (tag of tags(); track tag) { <mat-checkbox [checked]="draft.interests.includes(tag)" [disabled]="sessions.saving() || sessions.loading()" (change)="toggleInterest(tag, $event.checked)">{{ tagLabel(tag) }}</mat-checkbox> }</div>
+          <h4>Include or exclude sample places</h4>
+          @for (place of sessions.catalog()?.places ?? []; track place.id) {
+            @if (draft.places[place.id]; as pref) {
+              <div class="place-row"><mat-form-field><mat-label>{{ place.title }}</mat-label><mat-select [id]="'constraint-place-' + place.id" [name]="'place-' + place.id" [(ngModel)]="pref.choice" (ngModelChange)="markDirty()" [disabled]="sessions.saving() || sessions.loading()"><mat-option value="none">No preference</mat-option><mat-option value="include">Include</mat-option><mat-option value="exclude">Exclude</mat-option></mat-select></mat-form-field><mat-checkbox [name]="'place-hard-' + place.id" [(ngModel)]="pref.hard" (ngModelChange)="markDirty()" [disabled]="sessions.saving() || sessions.loading() || pref.choice === 'none'">Required</mat-checkbox></div>
+            }
+          }
+        </fieldset>
+        @if (!sessions.catalog()) { <p>The place list is required. <button mat-button type="button" (click)="sessions.loadCatalog()">Reload places</button></p> }
+        @if (draftDirty()) { <p class="muted" role="status">Confirm your changes to use them in the next itinerary.</p> }
+        @if (reviewConflict()) { <button mat-stroked-button type="button" (click)="reloadReview()">Replace my edits with the latest saved constraints</button> }
+        <button mat-flat-button class="primary" type="submit" [disabled]="sessions.saving() || sessions.loading() || !sessions.catalog() || reviewConflict()">{{ sessions.saving() ? 'Saving…' : 'Confirm my constraints' }}</button>
+        @if (sessions.ownSession()?.confirmed && !draftDirty()) { <span class="confirmed" role="status">My constraints are confirmed</span> }
+      </form>
+      </details>
+    }
+    @if (localError() || sessions.error()) { <p class="error" role="alert">{{ localError() || sessions.error() }}</p> }
+    <div class="generate"><button mat-flat-button class="primary" type="button" [disabled]="!sessions.allConfirmed() || draftDirty() || sessions.saving() || !sessions.catalog()" (click)="requestSuggestion()">Suggest an itinerary</button>
+      @if (!sessions.allConfirmed()) { <p class="muted">Every member must confirm their constraints using their own account before requesting an itinerary.</p> }
+    </div>
+</mat-expansion-panel>

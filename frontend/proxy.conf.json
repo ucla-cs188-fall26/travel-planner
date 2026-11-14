@@ -1,1 +1,4 @@
-{ "/api": { "target": "http://localhost:3000", "secure": false } }
+{
+  "/solver-api": { "target": "http://127.0.0.1:3001", "secure": false },
+  "/api": { "target": "http://localhost:3000", "secure": false }
+}

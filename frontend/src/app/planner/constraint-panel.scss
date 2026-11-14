@@ -1,0 +1,49 @@
+:host {
+  display: block;
+  flex: 0 0 auto;
+  max-height: 55vh;
+  overflow: auto;
+  min-height: 0;
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.constraint-panel { margin: 8px 12px 0; }
+p { line-height: 1.6; }
+.sample, .muted { color: #666; font-size: 12px; }
+.sample { margin: 0 0 10px; }
+.members { list-style: none; padding: 8px 0; margin: 0; border-block: 1px solid #eee; }
+.members li { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; }
+.members span { color: #666; font-size: 12px; }
+h3 { font-size: 14px; font-weight: 500; margin: 14px 0 8px; line-height: 1.5; }
+h4 { margin: 12px 0 8px; font-size: 13px; }
+summary { cursor: pointer; font-weight: 500; line-height: 1.5; }
+
+// Match the existing comparison cards; controls inherit the app's Material theme.
+.choices { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.choice { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 10px; border: 1px solid #ddd; border-radius: 10px; background: #fff; }
+.choice > strong { font-size: 13px; font-weight: 500; }
+.choice p { flex: 1; margin: 0; color: #666; font-size: 12px; }
+.choice button { align-self: flex-start; }
+.indifferent { margin-top: 8px; }
+.answered { margin: 12px 0; }
+.answer-row { height: auto; white-space: normal; text-align: left; width: 100%; margin: 5px 0; padding-block: 8px; font-size: 12px; }
+.answer-row span, .answer-row strong { display: block; }
+.answer-row strong { font-weight: 500; }
+.review { border-top: 1px solid #eee; padding-top: 8px; margin-top: 12px; }
+fieldset { border: 0; padding: 0; min-width: 0; }
+.review-row, .place-row { display: flex; gap: 12px; align-items: baseline; }
+mat-form-field { flex: 1; min-width: 0; }
+mat-checkbox { flex: 0 0 auto; }
+.tags { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.primary { margin-top: 8px; }
+.confirmed { display: block; font-size: 12px; margin-top: 8px; color: #666; }
+.generate { border-top: 1px solid #eee; padding-top: 12px; margin-top: 12px; }
+.generate button { width: 100%; }
+.error { color: #b00020; overflow-wrap: anywhere; }
+
+@container (max-width: 440px) {
+  .choices { grid-template-columns: minmax(0, 1fr); }
+  .review-row, .place-row { flex-wrap: wrap; gap: 0; margin-bottom: 12px; }
+  mat-form-field { flex-basis: 100%; }
+}

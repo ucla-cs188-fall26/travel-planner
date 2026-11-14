@@ -16,6 +16,34 @@ service cloud.firestore {
         allow read, write: if request.auth != null
           && request.auth.uid in get(/databases/$(db)/documents/trips/$(tripId)).data.memberIds;
       }
+
+      // Every trip member can inspect collection progress, but can only submit their own answers.
+      match /constraintSessions/{uid} {
+        function isMember() {
+          return request.auth != null
+            && request.auth.uid in get(/databases/$(db)/documents/trips/$(tripId)).data.memberIds;
+        }
+        function validSession() {
+          let data = request.resource.data;
+          return data.keys().hasAll(['uid', 'schemaVersion', 'revision', 'confirmed', 'answers',
+                                    'answerHistory', 'constraints', 'updatedAt'])
+            && data.keys().hasOnly(['uid', 'schemaVersion', 'revision', 'confirmed', 'answers',
+                                   'answerHistory', 'constraints', 'updatedAt'])
+            && data.uid == uid && data.schemaVersion == 1
+            && data.revision is int && data.confirmed is bool
+            && data.answers is list && data.answers.size() <= 5
+            && data.answerHistory is list && data.answerHistory.size() <= 200
+            && data.constraints is list && data.constraints.size() <= 30
+            && data.updatedAt is number
+            && (!data.confirmed || data.answers.size() == 5);
+        }
+        allow read: if isMember();
+        allow create: if isMember() && request.auth.uid == uid
+          && validSession() && request.resource.data.revision == 1;
+        allow update: if isMember() && request.auth.uid == uid
+          && validSession() && request.resource.data.revision == resource.data.revision + 1;
+        allow delete: if false;
+      }
     }
   }
 }

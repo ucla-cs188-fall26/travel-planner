@@ -1,0 +1,3 @@
+firestore.test.rules
+*-debug.log
+.firebase/

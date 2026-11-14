@@ -11,14 +11,17 @@ import { MapsLoader } from '../core/maps-loader';
 import { ComparisonCard } from './comparison-card';
 import { ChatMessage, Question, Trip } from '../core/models';
 import { GroupPrefsPanel } from './group-prefs-panel'
+import { ConstraintPanel } from './constraint-panel';
+import { ConstraintPlanner } from '../core/constraint-planner';
 
 // Center pane: conversation with the planner, question tokens, comparison cards
 @Component({
   selector: 'app-chat-panel',
-  imports: [FormsModule, MarkdownComponent, MatButtonModule, MatChipsModule, MatProgressBarModule, ComparisonCard, GroupPrefsPanel],
+  imports: [FormsModule, MarkdownComponent, MatButtonModule, MatChipsModule, MatProgressBarModule, ComparisonCard, GroupPrefsPanel, ConstraintPanel],
   template: `
     @if (store.activeTrip()) {
       <app-group-prefs-panel />
+      <app-constraint-panel (suggest)="planner.suggest()" />
       <div class="log" #log> <!-- Message history -->
         @if (store.messages().length === 0) {
           <div class="hint">Tell the planner about your trip, e.g. "We want a relaxed 3 days with good food."</div>
@@ -70,6 +73,7 @@ import { GroupPrefsPanel } from './group-prefs-panel'
 })
 export class ChatPanel {
   store = inject(TripStore);
+  planner = inject(ConstraintPlanner);
   private api = inject(Api);
   private repo = inject(TripRepo);
   private maps = inject(MapsLoader);
@@ -122,10 +126,14 @@ export class ChatPanel {
       const details = { ...trip.details, ...directAnswer, ...res.extracted };
       let patch: Partial<Trip> = { details, status: res.status };
 
-      // Itinerary: replace LLM's coordinates with ones from Places API
+      if (this.store.activeTripId() !== trip.id) return;
+
+      // Chat may propose stops, but only an explicit, solver-validated acceptance writes them.
       if (res.status === 'ready' && res.itinerary?.length) {
         const stops = await this.maps.resolveStops(res.itinerary, String(details['destination'] ?? ''));
-        patch = { ...patch, stops, status: 'planned' };
+        if (this.store.activeTripId() !== trip.id) return;
+        this.store.showPreview(res.reply, stops,
+          ['This is a sample chat suggestion. Confirm all members’ constraints to request a validated itinerary proposal.'], 'chat');
       }
       this.store.patchActiveTrip(patch);
       await this.repo.updateTrip(trip.id, patch);

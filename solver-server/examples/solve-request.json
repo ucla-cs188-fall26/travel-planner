@@ -1,0 +1,205 @@
+{
+  "trip": {
+    "id": "sample-paris-trip",
+    "name": "Paris constraint demo",
+    "ownerId": "alice",
+    "memberIds": [
+      "alice",
+      "bob"
+    ],
+    "startDate": "2026-11-20",
+    "endDate": "2026-11-20",
+    "status": "gathering",
+    "details": {
+      "destination": "Paris, France"
+    },
+    "anchors": [],
+    "overrides": {},
+    "stops": []
+  },
+  "members": [
+    {
+      "uid": "alice",
+      "schemaVersion": 1,
+      "revision": 6,
+      "confirmed": true,
+      "answers": [
+        {
+          "questionId": "budget",
+          "questionVersion": 1,
+          "choice": "A",
+          "createdAt": 1795190400000
+        },
+        {
+          "questionId": "day-window",
+          "questionVersion": 1,
+          "choice": "A",
+          "createdAt": 1795190400000
+        },
+        {
+          "questionId": "walking",
+          "questionVersion": 1,
+          "choice": "A",
+          "createdAt": 1795190400000
+        },
+        {
+          "questionId": "pace",
+          "questionVersion": 1,
+          "choice": "A",
+          "createdAt": 1795190400000
+        },
+        {
+          "questionId": "interest",
+          "questionVersion": 1,
+          "choice": "A",
+          "createdAt": 1795190400000
+        }
+      ],
+      "answerHistory": [],
+      "constraints": [
+        {
+          "id": "alice:budget:budget_max",
+          "ownerId": "alice",
+          "kind": "budget_max",
+          "value": 6000,
+          "hard": true,
+          "sourceQuestionId": "budget"
+        },
+        {
+          "id": "alice:day-window:day_start_min",
+          "ownerId": "alice",
+          "kind": "day_start_min",
+          "value": 540,
+          "hard": false,
+          "sourceQuestionId": "day-window"
+        },
+        {
+          "id": "alice:day-window:day_end_max",
+          "ownerId": "alice",
+          "kind": "day_end_max",
+          "value": 1080,
+          "hard": false,
+          "sourceQuestionId": "day-window"
+        },
+        {
+          "id": "alice:walking:walking_max",
+          "ownerId": "alice",
+          "kind": "walking_max",
+          "value": 30,
+          "hard": false,
+          "sourceQuestionId": "walking"
+        },
+        {
+          "id": "alice:pace:max_activities",
+          "ownerId": "alice",
+          "kind": "max_activities",
+          "value": 2,
+          "hard": false,
+          "sourceQuestionId": "pace"
+        },
+        {
+          "id": "alice:interest:interest",
+          "ownerId": "alice",
+          "kind": "interest",
+          "value": "art",
+          "hard": false,
+          "sourceQuestionId": "interest"
+        }
+      ],
+      "updatedAt": 1795190400000
+    },
+    {
+      "uid": "bob",
+      "schemaVersion": 1,
+      "revision": 6,
+      "confirmed": true,
+      "answers": [
+        {
+          "questionId": "budget",
+          "questionVersion": 1,
+          "choice": "B",
+          "createdAt": 1795190400000
+        },
+        {
+          "questionId": "day-window",
+          "questionVersion": 1,
+          "choice": "B",
+          "createdAt": 1795190400000
+        },
+        {
+          "questionId": "walking",
+          "questionVersion": 1,
+          "choice": "B",
+          "createdAt": 1795190400000
+        },
+        {
+          "questionId": "pace",
+          "questionVersion": 1,
+          "choice": "B",
+          "createdAt": 1795190400000
+        },
+        {
+          "questionId": "interest",
+          "questionVersion": 1,
+          "choice": "B",
+          "createdAt": 1795190400000
+        }
+      ],
+      "answerHistory": [],
+      "constraints": [
+        {
+          "id": "bob:budget:budget_max",
+          "ownerId": "bob",
+          "kind": "budget_max",
+          "value": 10000,
+          "hard": true,
+          "sourceQuestionId": "budget"
+        },
+        {
+          "id": "bob:day-window:day_start_min",
+          "ownerId": "bob",
+          "kind": "day_start_min",
+          "value": 480,
+          "hard": false,
+          "sourceQuestionId": "day-window"
+        },
+        {
+          "id": "bob:day-window:day_end_max",
+          "ownerId": "bob",
+          "kind": "day_end_max",
+          "value": 1260,
+          "hard": false,
+          "sourceQuestionId": "day-window"
+        },
+        {
+          "id": "bob:walking:walking_max",
+          "ownerId": "bob",
+          "kind": "walking_max",
+          "value": 75,
+          "hard": false,
+          "sourceQuestionId": "walking"
+        },
+        {
+          "id": "bob:pace:max_activities",
+          "ownerId": "bob",
+          "kind": "max_activities",
+          "value": 4,
+          "hard": false,
+          "sourceQuestionId": "pace"
+        },
+        {
+          "id": "bob:interest:interest",
+          "ownerId": "bob",
+          "kind": "interest",
+          "value": "nature",
+          "hard": false,
+          "sourceQuestionId": "interest"
+        }
+      ],
+      "updatedAt": 1795190400000
+    }
+  ],
+  "catalogId": "paris-sample-v1",
+  "inputVersion": "example-snapshot-v1",
+  "requestedEdits": []
+}
