@@ -105,12 +105,28 @@ class Comparison(BaseModel):
     options: tuple[ComparisonOption, ComparisonOption]
 
 
+class PlaceSuggestion(BaseModel):
+    id: str
+    title: str
+    place: Place
+    reason: str
+    durationMinutes: int = Field(ge=15, le=720)
+    costCents: int = Field(ge=0)
+
+
+class SuggestionDecision(BaseModel):
+    proposalId: str = Field(min_length=1, max_length=64)
+    action: Literal['accept', 'skip']
+    acceptedIds: list[str] = Field(default_factory=list, max_length=40)
+
+
 class ChatRequest(BaseModel):
     """What the frontend sends to POST /api/chat."""
-    message: str
+    message: str = Field(min_length=1, max_length=10000)
     trip: Trip
     groupPreferences: GroupPreferences | None = None
-    recentMessages: list[ChatMessage] = Field(default_factory=list)
+    recentMessages: list[ChatMessage] = Field(default_factory=list, max_length=20)
+    suggestionDecision: SuggestionDecision | None = None
 
 
 class ChatResponse(BaseModel):
@@ -121,6 +137,10 @@ class ChatResponse(BaseModel):
     extracted: dict[str, Any] = Field(default_factory=dict)
     comparison: Comparison | None = None
     itinerary: list[Stop] | None = None
+    warnings: list[str] = Field(default_factory=list)
+    suggestions: list[PlaceSuggestion] = Field(default_factory=list)
+    proposalId: str | None = None
+    canSkipSuggestions: bool = False
 
 
 # ---------- Calendar edits ----------
@@ -139,7 +159,7 @@ class EditDiff(BaseModel):
 
 
 class ChangeRequest(BaseModel):
-    diff: list[EditDiff]
+    diff: list[EditDiff] = Field(min_length=1, max_length=40)
     trip: Trip  # stops already include the user's drag
     groupPreferences: GroupPreferences | None = None
 

@@ -1,6 +1,6 @@
 export const environment = {
-  production: "",
-  useMock: "",                
+  production: false,
+  useMock: false,
   apiBaseUrl: '/api',
   googleMapsApiKey: 'API_KEY',
   googleMapId: 'MAP_ID',

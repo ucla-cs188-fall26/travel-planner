@@ -79,6 +79,11 @@ export const ComparisonSchema = z.object({
 });
 
 //LLM response to answers from POST /api/chat
+export const PlaceSuggestionSchema = z.object({
+  id: z.string(), title: z.string(), place: PlaceSchema, reason: z.string(),
+  durationMinutes: z.number().int().min(15).max(720), costCents: z.number().int().nonnegative(),
+});
+
 export const ChatResponseSchema = z.object({
   status: z.enum(['gathering', 'ready']),
   reply: z.string(),
@@ -86,6 +91,10 @@ export const ChatResponseSchema = z.object({
   extracted: z.record(z.string(), z.any()).default({}),
   comparison: ComparisonSchema.nullish(),
   itinerary: z.array(StopSchema).nullish(),
+  warnings: z.array(z.string()).default([]),
+  suggestions: z.array(PlaceSuggestionSchema).optional(),
+  proposalId: z.string().nullish(),
+  canSkipSuggestions: z.boolean().optional(),
 });
 
 //changes to calendar in the view
@@ -112,6 +121,8 @@ export type Comparison = z.infer<typeof ComparisonSchema>;
 export type ChatResponse = z.infer<typeof ChatResponseSchema>;
 export type EditDiff = z.infer<typeof EditDiffSchema>;
 export type ChangeResponse = z.infer<typeof ChangeResponseSchema>;
+export type PlaceSuggestion = z.infer<typeof PlaceSuggestionSchema>;
+export interface SuggestionDecision { proposalId: string; action: 'accept' | 'skip'; acceptedIds: string[]; }
 
 //a singular chat bubble in the application
 export interface ChatMessage {
@@ -120,6 +131,9 @@ export interface ChatMessage {
   text: string;
   question?: Question | null;
   comparison?: Comparison | null;
+  suggestions?: PlaceSuggestion[];
+  proposalId?: string | null;
+  canSkipSuggestions?: boolean;
   createdAt: number;
 }
 

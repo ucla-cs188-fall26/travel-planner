@@ -18,6 +18,7 @@ export class TripStore {
   //changes preview shown by LLM before user accepts
   readonly preview = signal<{ summary: string; stops: Stop[]; warnings: string[] } | null>(null);
   readonly changeStatus = signal<'idle' | 'pending' | 'error'>('idle')
+  readonly changeError = signal<string | null>(null);
   private snapshotBeforeEdit: Stop[] | null = null;
   private history: Stop[][] = [];
 
@@ -57,6 +58,8 @@ export class TripStore {
     this.preview.set(null);
     this.history = [];
     this.changeStatus.set('idle');
+    this.changeError.set(null);
+    this.pendingQuestion.set(null);
     this.snapshotBeforeEdit = null;
   }
 
