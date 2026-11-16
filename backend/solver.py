@@ -13,10 +13,12 @@ ESTIMATE_NOTICE = ('Opening hours, activity costs (USD per person), and travel t
 
 
 class PlanningError(ValueError):
-    def __init__(self, conflicts: list[str], *, timeout: bool = False):
+    """conflicts: error explanation. details: matching machine-readable tags"""
+    def __init__(self, conflicts: list[str], *, timeout: bool = False, details: list[dict] | None = None):
         super().__init__('; '.join(conflicts))
         self.conflicts = conflicts
         self.timeout = timeout
+        self.details = details or []
 
 
 def trip_dates(trip: Trip) -> list[date]:
@@ -116,15 +118,22 @@ def solve(trip: Trip, problem: PlanningConstraints, *, pinned: dict[str, tuple[s
     dates = trip_dates(trip)
     pinned = pinned or {}
     activities = problem.activities
-    # Separate contexts are essential: FastAPI executes sync routes on multiple threads.
     ctx = z3.Context()
     selected = [z3.Bool(f'visit_{i}', ctx=ctx) for i in range(len(activities))]
     day = [z3.Int(f'day_{i}', ctx=ctx) for i in range(len(activities))]
     start = [z3.Int(f'start_{i}', ctx=ctx) for i in range(len(activities))]
-    hard: list[tuple[object, str]] = []
+    hard: list[tuple[object, str, dict]] = []
+    # Anchor supremacy: a must-do may break a group preference (hours, budget, pace),
+    # if there is no way around it. These track each break so the optimizer can minimize them before anything else.
+    hour_breaks: list[tuple[int, object]] = []      # (activity index, minutes outside active hours)
+    budget_breaks: list[tuple[date, object]] = []   # (day, cents over budget)
+    pace_breaks: list[tuple[date, object, object]] = []  # (day, extra places, count)
 
-    def require(expression, explanation):
-        hard.append((expression, explanation))
+    def must_do(a) -> bool:
+        return bool(a.anchorIndices) or a.fixedStart is not None
+
+    def require(expression, explanation, **info):
+        hard.append((expression, explanation, info))
 
     old = {s.id: s for s in trip.stops}
     ids = {a.id: i for i, a in enumerate(activities)}
@@ -132,15 +141,23 @@ def solve(trip: Trip, problem: PlanningConstraints, *, pinned: dict[str, tuple[s
         raise PlanningError(['An edited event is missing from the saved planning constraints. Generate a new plan first.'])
     for i, a in enumerate(activities):
         visit, d, s = selected[i], day[i], start[i]
-        require(z3.And(d >= 0, d < len(dates), s >= 0, s < 1440), f'Valid trip date/time for "{a.title}".')
+        require(z3.And(d >= 0, d < len(dates), s >= 0, s < 1440), f'Valid trip date/time for "{a.title}".',
+                type='valid', activity=a.id)
         if a.required or a.fixedStart is not None or (preserve_all and a.id in old) or a.id in pinned:
-            require(visit, f'Required visit: {a.title}.')
+            require(visit, f'Required visit: {a.title}.', type='required', activity=a.id)
         allowed = [z3.And(d == (w.date - dates[0]).days,
                           s >= minutes(w.start), s + a.durationMinutes <= minutes(w.end)) for w in a.windows]
-        require(z3.Implies(visit, z3.Or(*allowed)), f'Opening/visit windows for "{a.title}".')
-        require(z3.Implies(visit, z3.And(s >= minutes(problem.activeHours.start),
-                                        s + a.durationMinutes <= minutes(problem.activeHours.end))),
-                f'Active hours for "{a.title}" ({problem.activeHours.start}–{problem.activeHours.end}).')
+        require(z3.Implies(visit, z3.Or(*allowed)), f'Opening/visit windows for "{a.title}".',
+                type='window', activity=a.id)
+        open_at, close_at = minutes(problem.activeHours.start), minutes(problem.activeHours.end)
+        if must_do(a) or a.id in pinned:
+            early = z3.If(s < open_at, open_at - s, 0)
+            late = z3.If(s + a.durationMinutes > close_at, s + a.durationMinutes - close_at, 0)
+            hour_breaks.append((i, z3.If(visit, early + late, 0)))
+        else:
+            require(z3.Implies(visit, z3.And(s >= open_at, s + a.durationMinutes <= close_at)),
+                    f'Active hours for "{a.title}" ({problem.activeHours.start}–{problem.activeHours.end}).',
+                    type='hours', activity=a.id)
         fixed = a.fixedStart
         if a.id in pinned:
             pstart, pend = map(local_start, pinned[a.id])
@@ -152,7 +169,8 @@ def solve(trip: Trip, problem: PlanningConstraints, *, pinned: dict[str, tuple[s
         if fixed:
             require(z3.Implies(visit, z3.And(d == (fixed.date() - dates[0]).days,
                                             s == fixed.hour * 60 + fixed.minute)),
-                    f'Fixed appointment: {a.title} at {fixed.isoformat(timespec="minutes")}.')
+                    f'Fixed appointment: {a.title} at {fixed.isoformat(timespec="minutes")}.',
+                    type='fixed', activity=a.id)
 
     for i, a in enumerate(activities):
         for j in range(i + 1, len(activities)):
@@ -160,42 +178,61 @@ def solve(trip: Trip, problem: PlanningConstraints, *, pinned: dict[str, tuple[s
             require(z3.Implies(z3.And(selected[i], selected[j], day[i] == day[j]),
                                z3.Or(start[i] + a.durationMinutes + problem.travelMinutes <= start[j],
                                      start[j] + b.durationMinutes + problem.travelMinutes <= start[i])),
-                    f'No overlap + {problem.travelMinutes} min travel: {a.title} / {b.title}.')
+                    f'No overlap + {problem.travelMinutes} min travel: {a.title} / {b.title}.',
+                    type='overlap', activities=[a.id, b.id])
     for d, dt in enumerate(dates):
-        count = z3.Sum([z3.If(z3.And(selected[i], day[i] == d), 1, 0) for i in range(len(activities))])
-        require(z3.And(count >= problem.minActivitiesPerDay, count <= problem.maxActivitiesPerDay),
-                f'{dt}: {problem.minActivitiesPerDay}–{problem.maxActivitiesPerDay} activities required.')
+        on_day = [z3.And(selected[i], day[i] == d) for i in range(len(activities))]
+        count = z3.Sum([z3.If(x, 1, 0) for x in on_day])
+        extra = z3.Int(f'extra_places_{d}', ctx=ctx)
+        must_dos_today = z3.Sum([z3.If(x, 1, 0) for x, a in zip(on_day, activities) if must_do(a)] or [z3.IntVal(0, ctx)])
+        require(z3.And(count >= problem.minActivitiesPerDay, extra >= 0, extra <= must_dos_today,
+                       count <= problem.maxActivitiesPerDay + extra),
+                f'{dt}: {problem.minActivitiesPerDay}–{problem.maxActivitiesPerDay} activities required.',
+                type='daily_count', date=str(dt))
+        pace_breaks.append((dt, extra, count))
         if problem.dailyBudgetCents is not None:
-            cost = z3.Sum([z3.If(z3.And(selected[i], day[i] == d), a.costCents, 0)
-                           for i, a in enumerate(activities)])
-            require(cost <= problem.dailyBudgetCents,
-                    f'{dt}: daily activity budget USD {problem.dailyBudgetCents / 100:.2f}/person.')
+            cost = z3.Sum([z3.If(x, a.costCents, 0) for x, a in zip(on_day, activities)])
+            over = z3.Int(f'over_budget_{d}', ctx=ctx)
+            must_do_cost = z3.Sum([z3.If(x, a.costCents, 0) for x, a in zip(on_day, activities) if must_do(a)]
+                                  or [z3.IntVal(0, ctx)])
+            needed = z3.If(must_do_cost > problem.dailyBudgetCents, must_do_cost - problem.dailyBudgetCents, 0)
+            require(z3.And(over >= 0, over <= needed, cost <= problem.dailyBudgetCents + over),
+                    f'{dt}: daily activity budget USD {problem.dailyBudgetCents / 100:.2f}/person.',
+                    type='budget', date=str(dt))
+            budget_breaks.append((dt, over))
     for anchor_index, name in enumerate(trip.anchors):
         require(z3.Or(*[selected[i] for i, a in enumerate(activities) if anchor_index in a.anchorIndices]),
-                f'Must-do visit: {name}.')
+                f'Must-do visit: {name}.', type='anchor', index=anchor_index)
     for edge in problem.before:
         i, j = ids[edge.beforeId], ids[edge.afterId]
         require(z3.Implies(z3.And(selected[i], selected[j]),
                            day[i] * 1440 + start[i] + activities[i].durationMinutes + edge.gapMinutes
                            <= day[j] * 1440 + start[j]),
-                f'Visit {activities[i].title} before {activities[j].title}.')
+                f'Visit {activities[i].title} before {activities[j].title}.',
+                type='order', before=edge.beforeId, after=edge.afterId)
 
     checker = z3.Solver(ctx=ctx)
     checker.set(timeout=timeout_ms)
-    for i, (expr, _) in enumerate(hard):
+    for i, (expr, *_) in enumerate(hard):
         checker.assert_and_track(expr, z3.Bool(f'constraint_{i}', ctx=ctx))
     status = checker.check()
     if status == z3.unsat:
         indices = [int(str(label).removeprefix('constraint_')) for label in checker.unsat_core()]
-        raise PlanningError([hard[i][1] for i in indices][:12])
+        raise PlanningError([hard[i][1] for i in indices][:12], details=[hard[i][2] for i in indices][:12])
     if status != z3.sat:
         raise PlanningError(['The solver reached its time limit. Try fewer candidates or a shorter trip.'], timeout=True)
 
     model = checker.model()
     optimizer = z3.Optimize(ctx=ctx)
     optimizer.set(timeout=timeout_ms)
-    optimizer.add(*[expr for expr, _ in hard])
-    # On calendar edits, minimize disruption before adding preferred optional activities.
+    optimizer.add(*[expr for expr, *_ in hard])
+    breaks = ([z3.If(m > 0, 1, 0) for _, m in hour_breaks] + [z3.If(o > 0, 1, 0) for _, o in budget_breaks]
+              + [z3.If(e > 0, 1, 0) for _, e, _ in pace_breaks])
+    if breaks:
+        optimizer.minimize(z3.Sum(breaks))
+    for terms in ([o for _, o in budget_breaks], [m for _, m in hour_breaks], [e for _, e, _ in pace_breaks]):
+        if terms:
+            optimizer.minimize(z3.Sum(terms))
     if preserve_all:
         movement = []
         for i, a in enumerate(activities):
@@ -212,6 +249,19 @@ def solve(trip: Trip, problem: PlanningConstraints, *, pinned: dict[str, tuple[s
         model = optimizer.model()
     else:
         warnings.append('Preference optimization timed out; the returned schedule still satisfies every hard constraint.')
+
+    for i, outside in hour_breaks:
+        if model.eval(outside, model_completion=True).as_long() > 0:
+            warnings.append(f'"{activities[i].title}" falls outside your usual hours '
+                            f'({problem.activeHours.start}–{problem.activeHours.end}) because it is a must-do.')
+    for dt, over in budget_breaks:
+        cents = model.eval(over, model_completion=True).as_long()
+        if cents > 0:
+            warnings.append(f'{dt}: about USD {cents / 100:.2f} over the daily budget because of must-do visits.')
+    for dt, extra, count in pace_breaks:
+        if model.eval(extra, model_completion=True).as_long() > 0:
+            warnings.append(f'{dt}: {model.eval(count, model_completion=True).as_long()} places, more than your '
+                            f'pace allows ({problem.maxActivitiesPerDay}), because of must-do visits.')
 
     result = []
     for i, a in enumerate(activities):
