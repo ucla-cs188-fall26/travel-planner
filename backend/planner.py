@@ -5,10 +5,10 @@ import uuid
 
 from pydantic import ValidationError
 
-from . import llm
+from . import llm, resolution
 from .constraints import Extraction, InitialExtraction, PlanningConstraints, SuggestionProposal
 from .schemas import ChangeRequest, ChangeResponse, ChatRequest, ChatResponse, PlaceSuggestion, Question, Trip
-from .solver import PlanningError, local_start, prepare_constraints, solve, trip_dates
+from .solver import PlanningError, local_start, solve, trip_dates
 
 EXTRACTION_INSTRUCTIONS = """
 You preprocess a travel-planning conversation into declarative scheduling constraints.
@@ -29,7 +29,11 @@ Rules:
   If a user asks for a total trip/group budget or an unclear currency, ask how much is available for activities
   per person per day in USD. Profile/group budgetPerDay is already USD per person/day.
 - Each activity has one or more date/start/end visit windows. The entire activity must fit a window
-  and the active hours. Use credible meal windows for food and list opening-hour uncertainty in assumptions.
+  and the active hours, EXCEPT anchors and fixed appointments: anchors outrank ALL preferences (active
+  hours, budget and pace). Give an anchor its real opening window, cost and duration even if they fall
+  outside the group's hours, budget or pace (e.g. a sunrise visit for people who like to sleep in). Never
+  omit or shorten an anchor to fit a preference: the solver keeps anchors within preferences whenever
+  possible and only breaks a preference when an anchor leaves no other option. Use credible meal windows for food and list opening-hour uncertainty in assumptions.
 - Represent explicit hard requirements as required=true, fixedStart, windows, ordering edges or budget.
   Represent preferences by preferenceScore (1–100); optional activities may be omitted by the solver.
   anchorIndices are zero-based indices into trip.anchors. Include candidates covering EVERY anchor.
@@ -75,7 +79,8 @@ def extract(request: ChatRequest) -> Extraction:
 
 
 def proposal_context(trip: Trip, group) -> str:
-    ignored = {'pendingProposal', 'plannerConstraints', 'plannerWarnings', 'acceptedSuggestionIds'}
+    ignored = {'pendingProposal', 'plannerConstraints', 'plannerWarnings', 'acceptedSuggestionIds',
+               'pendingResolution'}
     context = {'tripId': trip.id, 'startDate': trip.startDate, 'endDate': trip.endDate,
                'anchors': trip.anchors, 'overrides': trip.overrides,
                'details': {k: v for k, v in trip.details.items() if k not in ignored},
@@ -97,7 +102,14 @@ def additional_activities(problem: PlanningConstraints, trip: Trip):
     return extra
 
 
-def conflict_response(exc: PlanningError, details: dict) -> ChatResponse:
+def conflict_response(exc: PlanningError, details: dict, *, raw: PlanningConstraints | None = None,
+                      request: ChatRequest | None = None, stage: str = 'final') -> ChatResponse:
+    if raw is not None and request is not None:
+        built = resolution.build_comparison(exc, raw, request.trip, request.groupPreferences, stage)
+        if built:
+            reply, comparison, pending = built
+            return ChatResponse(status='gathering', reply=reply, comparison=comparison,
+                                extracted={**details, 'pendingResolution': pending})
     reason = '\n'.join('- ' + c for c in exc.conflicts)
     if exc.timeout:
         return ChatResponse(
@@ -115,7 +127,7 @@ def conflict_response(exc: PlanningError, details: dict) -> ChatResponse:
 
 def finish_plan(problem, stops, warnings, details, reply) -> ChatResponse:
     details.update(plannerConstraints=problem.model_dump(mode='json', exclude_none=True),
-                   plannerWarnings=warnings, pendingProposal=None)
+                   plannerWarnings=warnings, pendingProposal=None, pendingResolution=None)
     return ChatResponse(status='ready', reply=reply, extracted=details, itinerary=stops, warnings=warnings)
 
 
@@ -145,12 +157,12 @@ def decide_suggestions(request: ChatRequest) -> ChatResponse:
             a['required'] = True
     kept = {a['id'] for a in data['activities']}
     data['before'] = [e for e in data['before'] if e['beforeId'] in kept and e['afterId'] in kept]
+    raw = PlanningConstraints.model_validate(data)
     try:
-        problem = prepare_constraints(PlanningConstraints.model_validate(data), request.trip, request.groupPreferences)
+        problem = resolution.prepare(raw, request.trip, request.groupPreferences)
         stops, warnings = solve(request.trip, problem)
     except PlanningError as exc:
-        # Keep the proposal so the user can deselect places and try again without another LLM call.
-        return conflict_response(exc, {})
+        return conflict_response(exc, {}, raw=raw, request=request, stage='final')
     details = {'acceptedSuggestionIds': sorted(accepted)}
     return finish_plan(problem, stops, warnings, details,
                        'Your itinerary is ready, including your must-dos and the places you selected.'
@@ -158,42 +170,71 @@ def decide_suggestions(request: ChatRequest) -> ChatResponse:
 
 
 def chat(request: ChatRequest) -> ChatResponse:
-    trip_dates(request.trip)  # Reject unsupported date ranges before spending an LLM call.
+    trip_dates(request.trip)
     if request.suggestionDecision:
         return decide_suggestions(request)
+    pick = resolution.picked_decision(request)
+    if pick:
+        return resolve_pick(request, *pick)
     extraction = extract(request)
     details = {'destination': extraction.destination} if extraction.destination else {}
-    details['pendingProposal'] = None  # New conversation input invalidates an older set of choices.
+    details['pendingProposal'] = None
+    details['pendingResolution'] = None
     if extraction.status == 'gathering':
         return ChatResponse(status='gathering', reply=extraction.reply, question=extraction.question, extracted=details)
     try:
-        problem = prepare_constraints(extraction.constraints, request.trip, request.groupPreferences)
+        problem = resolution.prepare(extraction.constraints, request.trip, request.groupPreferences)
         stops, warnings = solve(request.trip, problem)
     except PlanningError as exc:
-        return conflict_response(exc, details)
+        return conflict_response(exc, details, raw=extraction.constraints, request=request,
+                                 stage='final' if request.trip.stops else 'initial')
     if not request.trip.stops:
-        extras = additional_activities(problem, request.trip)
-        if not extras:
-            raise llm.LLMError('The planner did not suggest any new places beyond your must-dos. Please request another proposal.')
-        offered = {a.id for a in extras}
-        # Deduplicate optional anchor copies; every remaining optional place is explicitly offered for approval.
-        data = problem.model_dump(mode='json')
-        data['activities'] = [a for a in data['activities']
-                              if a['id'] in offered or a['required'] or a['anchorIndices'] or a['fixedStart']]
-        kept = {a['id'] for a in data['activities']}
-        data['before'] = [e for e in data['before'] if e['beforeId'] in kept and e['afterId'] in kept]
-        problem = PlanningConstraints.model_validate(data)
-        trip = request.trip.model_copy(update={'details': {**request.trip.details, **details}})
-        proposal = SuggestionProposal(id=str(uuid.uuid4()), context=proposal_context(trip, request.groupPreferences),
-                                      constraints=problem, suggestionIds=[a.id for a in extras])
-        details['pendingProposal'] = proposal.model_dump(mode='json', exclude_none=True)
-        suggestions = [PlaceSuggestion(id=a.id, title=a.title, place=a.place,
-                                       reason=a.notes[:600] or 'An additional place to explore based on your trip.',
-                                       durationMinutes=a.durationMinutes, costCents=a.costCents) for a in extras]
-        return ChatResponse(status='gathering', reply=extraction.reply, extracted=details,
-                            suggestions=suggestions, proposalId=proposal.id,
-                            canSkipSuggestions=any(a.id not in offered for a in problem.activities))
+        return offer_suggestions(problem, request, details, extraction.reply)
     return finish_plan(problem, stops, warnings, details, extraction.reply)
+
+
+def offer_suggestions(problem: PlanningConstraints, request: ChatRequest, details: dict, reply: str) -> ChatResponse:
+    """Before the first itinerary, show optional places to choose from."""
+    extras = additional_activities(problem, request.trip)
+    if not extras:
+        raise llm.LLMError('The planner did not suggest any new places beyond your must-dos. Please request another proposal.')
+    offered = {a.id for a in extras}
+    data = problem.model_dump(mode='json')
+    data['activities'] = [a for a in data['activities']
+                          if a['id'] in offered or a['required'] or a['anchorIndices'] or a['fixedStart']]
+    kept = {a['id'] for a in data['activities']}
+    data['before'] = [e for e in data['before'] if e['beforeId'] in kept and e['afterId'] in kept]
+    problem = PlanningConstraints.model_validate(data)
+    trip = request.trip.model_copy(update={'details': {**request.trip.details, **details}})
+    proposal = SuggestionProposal(id=str(uuid.uuid4()), context=proposal_context(trip, request.groupPreferences),
+                                  constraints=problem, suggestionIds=[a.id for a in extras])
+    details['pendingProposal'] = proposal.model_dump(mode='json', exclude_none=True)
+    suggestions = [PlaceSuggestion(id=a.id, title=a.title, place=a.place,
+                                   reason=a.notes[:600] or 'An additional place to explore based on your trip.',
+                                   durationMinutes=a.durationMinutes, costCents=a.costCents) for a in extras]
+    return ChatResponse(status='gathering', reply=reply, extracted=details,
+                        suggestions=suggestions, proposalId=proposal.id,
+                        canSkipSuggestions=any(a.id not in offered for a in problem.activities))
+
+
+def resolve_pick(request: ChatRequest, pending: dict, decision: dict) -> ChatResponse:
+    """The group picked a comparison option: record the decision and solve again (no LLM call)."""
+    decisions = resolution.merged_decisions(request.trip.details.get('groupDecisions'), decision)
+    details = {'groupDecisions': decisions, 'pendingResolution': None}
+    trip = request.trip.model_copy(update={'details': {**request.trip.details, **details}})
+    request = request.model_copy(update={'trip': trip})
+    try:
+        raw = PlanningConstraints.model_validate(pending['raw'])
+        problem = resolution.prepare(raw, trip, request.groupPreferences)
+        stops, warnings = solve(trip, problem)
+    except ValidationError as exc:
+        raise PlanningError(['That choice is no longer available. Send your request again.']) from exc
+    except PlanningError as exc:
+        return conflict_response(exc, details, raw=raw, request=request, stage=pending.get('stage', 'final'))
+    if pending.get('stage') == 'initial' and not trip.stops:
+        return offer_suggestions(problem, request, details,
+                                 'Got it, I updated the plan with your choice. Pick any extra places you would like to add.')
+    return finish_plan(problem, stops, warnings, details, 'Got it, I updated your itinerary with that choice.')
 
 
 def change(request: ChangeRequest) -> ChangeResponse:
@@ -220,7 +261,6 @@ def change(request: ChangeRequest) -> ChangeResponse:
         stop = current.get(diff.stopId)
         if stop is None or stop.start != diff.to.start or stop.end != diff.to.end:
             raise PlanningError(['The edit does not match the current calendar event. Retry the change.'])
-        # The calendar prohibits dragging locked anchors; enforce this on the server too.
         if stop.locked and (diff.from_.start != diff.to.start or diff.from_.end != diff.to.end):
             raise PlanningError([f'Locked event "{stop.title}" cannot be dragged. Unlock it first.'])
         pinned[diff.stopId] = (diff.to.start, diff.to.end)
@@ -233,7 +273,7 @@ def change(request: ChangeRequest) -> ChangeResponse:
         problem = PlanningConstraints.model_validate(data)
     except ValidationError as exc:
         raise PlanningError(['Edited activities must last 15–720 minutes and stay within one day.']) from exc
-    problem = prepare_constraints(problem, request.trip, request.groupPreferences)
+    problem = resolution.prepare(problem, request.trip, request.groupPreferences)
     stops, warnings = solve(request.trip, problem, pinned=pinned, preserve_all=True)
     return ChangeResponse(summary='Kept your edited times and locked visits, then adjusted the other activities to satisfy the constraints.',
                           changes=stops, warnings=warnings)
