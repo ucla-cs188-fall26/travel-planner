@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideMarkdown } from 'ngx-markdown';
+import { MarkdownService, provideMarkdown } from 'ngx-markdown';
 import { ChatPanel } from './chat-panel';
 import { Api } from '../core/api';
 import { MapsLoader } from '../core/maps-loader';
@@ -100,6 +100,104 @@ describe('Planner schedule integration', () => {
     expect(api.chat).toHaveBeenCalledTimes(1);
     const button = fixture.nativeElement.querySelector('.first-plan button') as HTMLButtonElement;
     expect(button.disabled).toBe(true);
+  });
+
+  it('shows a pending response for a typed itinerary edit until the reply is ready', async () => {
+    store.patchActiveTrip({ stops: [stop], status: 'planned' });
+    let complete!: (response: ChatResponse) => void;
+    api.chat.mockReturnValue(new Promise<ChatResponse>(resolve => { complete = resolve; }));
+    const fixture = TestBed.createComponent(ChatPanel);
+    const component = fixture.componentInstance;
+    const send = vi.spyOn(component, 'send');
+    component.draft = 'Please add Eiffel Tower';
+    fixture.detectChanges();
+    const button = fixture.nativeElement.querySelector('.input button') as HTMLButtonElement;
+    button.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const indicator = fixture.nativeElement.querySelector('.log [role="status"]') as HTMLElement;
+    expect(indicator.textContent).toContain('Working on your request');
+    expect(indicator.querySelector('mat-spinner')).not.toBeNull();
+    expect(indicator.previousElementSibling?.textContent).toContain('Please add Eiffel Tower');
+    expect(button.disabled).toBe(true);
+    expect(button.textContent).toContain('Working');
+    await component.send('Please add Eiffel Tower');
+    expect(api.chat).toHaveBeenCalledTimes(1);
+
+    complete({ status: 'ready', reply: 'Added Eiffel Tower.', itinerary: [stop], extracted: {}, warnings: [] });
+    await send.mock.results[0].value;
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('.log [role="status"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.log').textContent).toContain('Added Eiffel Tower.');
+    expect(button.textContent?.trim()).toBe('Send');
+  });
+
+  it('clears the pending response on failure and shows it again when retrying', async () => {
+    let fail!: (error: Error) => void;
+    api.chat.mockReturnValueOnce(new Promise<ChatResponse>((_, reject) => { fail = reject; }));
+    api.chat.mockResolvedValueOnce({ status: 'gathering', reply: 'Request handled.', extracted: {}, warnings: [] });
+    const fixture = TestBed.createComponent(ChatPanel);
+    const send = vi.spyOn(fixture.componentInstance, 'send');
+    fixture.detectChanges();
+    const pending = fixture.componentInstance.send('Please add Eiffel Tower');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.loading')).not.toBeNull();
+
+    fail(new Error('Planner unavailable.'));
+    await pending;
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.loading')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.error').textContent).toContain('Planner unavailable.');
+    expect(store.loading()).toBe(false);
+
+    fixture.componentInstance.retry();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.loading')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.error')).toBeNull();
+    await send.mock.results[1].value;
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.loading')).toBeNull();
+    expect(api.chat.mock.calls[1][0].message).toBe('Please add Eiffel Tower');
+  });
+
+  it('scrolls to the pending response when loading changes without a new message', async () => {
+    const fixture = TestBed.createComponent(ChatPanel);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const log = fixture.nativeElement.querySelector('.log') as HTMLElement;
+    vi.mocked(log.scrollTo).mockClear();
+
+    store.loading.set(true);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(log.scrollTo).toHaveBeenCalledWith({ top: log.scrollHeight, behavior: 'smooth' });
+    expect(fixture.nativeElement.querySelector('.loading')).not.toBeNull();
+  });
+
+  it('scrolls again after an asynchronous reply finishes rendering its Markdown', async () => {
+    let renderReply!: (html: string) => void;
+    vi.spyOn(TestBed.inject(MarkdownService), 'parse').mockReturnValue(
+      new Promise<string>(resolve => { renderReply = resolve; }));
+    const fixture = TestBed.createComponent(ChatPanel);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const log = fixture.nativeElement.querySelector('.log') as HTMLElement;
+    Object.defineProperty(log, 'scrollHeight', {
+      configurable: true, get: () => log.querySelector('markdown p') ? 1200 : 300,
+    });
+
+    store.addMessage({ id: 'reply', role: 'assistant', text: 'Eiffel Tower added.', createdAt: 1 });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(log.querySelector('markdown p')).toBeNull();
+    vi.mocked(log.scrollTo).mockClear();
+
+    renderReply('<p>Eiffel Tower added.</p>');
+    await fixture.whenStable();
+    expect(log.querySelector('markdown p')?.textContent).toBe('Eiffel Tower added.');
+    expect(log.scrollTo).toHaveBeenLastCalledWith({ top: 1200, behavior: 'smooth' });
   });
 
   it('keeps an in-flight response attached to its original trip', async () => {

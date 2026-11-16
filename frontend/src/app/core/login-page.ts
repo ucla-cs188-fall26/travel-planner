@@ -9,12 +9,19 @@ import { AuthService } from './auth';
   imports: [MatButtonModule],
   template: `
     <div class="wrap">
-      <h1>Plan trips [add some good intro]</h1>
-      <button mat-flat-button (click)="go()">Sign in with Google</button>
-      @if (error()) { <p class="err">{{ error() }}</p> }
+      <h1>Plan your trip</h1>
+      <button mat-flat-button type="button" (click)="go()">Sign in with Google</button>
+      @if (error()) { <p class="err" role="alert">{{ error() }}</p> }
     </div>`,
-  styles: [`.wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px}
-            .err{color:#b00020}`],
+  styles: [`
+    /* Hallmark · genre: modern-minimal · tone: utilitarian · theme: existing Material
+     * pre-emit critique: P5 H4 E5 S4 R5 V3 */
+    :host{display:block;height:100%}
+    .wrap{box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100%;padding:24px;gap:24px;text-align:center}
+    h1{margin:0;font-size:24px;font-weight:500;line-height:1.3;letter-spacing:-.02em;overflow-wrap:anywhere}
+    button{max-width:100%;white-space:nowrap}
+    .err{max-width:320px;margin:0;color:var(--mat-sys-error);font-size:14px;overflow-wrap:anywhere}
+  `],
 })
 export class LoginPage {
   private auth = inject(AuthService);

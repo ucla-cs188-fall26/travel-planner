@@ -1,9 +1,9 @@
-import { Component, ElementRef, effect, inject, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, afterRenderEffect, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MarkdownComponent } from 'ngx-markdown';
 import { MatButtonModule } from '@angular/material/button';
 import { MatChipsModule } from '@angular/material/chips';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { TripStore } from '../core/trip-store';
 import { Api } from '../core/api';
 import { TripRepo } from '../core/trip-repo';
@@ -16,7 +16,7 @@ import { PlaceSuggestions } from './place-suggestions';
 // Center pane: conversation with the planner, question tokens, comparison cards
 @Component({
   selector: 'app-chat-panel',
-  imports: [FormsModule, MarkdownComponent, MatButtonModule, MatChipsModule, MatProgressBarModule, ComparisonCard, GroupPrefsPanel, PlaceSuggestions],
+  imports: [FormsModule, MarkdownComponent, MatButtonModule, MatChipsModule, MatProgressSpinnerModule, ComparisonCard, GroupPrefsPanel, PlaceSuggestions],
   template: `
     @if (store.activeTrip()) {
       <app-group-prefs-panel />
@@ -26,7 +26,7 @@ import { PlaceSuggestions } from './place-suggestions';
         }
         @for (m of store.messages(); track m.id) {
           <div class="msg" [class.user]="m.role === 'user'">
-            <markdown [data]="m.text" />
+            <markdown [data]="m.text" (ready)="scrollToLatest()" />
             @if (m.suggestions?.length) {
               <app-place-suggestions [suggestions]="m.suggestions!" [active]="activeProposal(m)" [disabled]="store.loading()"
                                      [canSkip]="m.canSkipSuggestions ?? false"
@@ -39,7 +39,12 @@ import { PlaceSuggestions } from './place-suggestions';
             }
           </div>
         }
-        @if (store.loading()) { <mat-progress-bar mode="indeterminate" /> }
+        @if (store.loading()) {
+          <div class="msg loading" role="status">
+            <mat-spinner diameter="20" aria-hidden="true" />
+            <span>Working on your request…</span>
+          </div>
+        }
         @if (error()) { <div class="error">{{ error() }} <button mat-button (click)="retry()">Retry</button></div> }
       </div>
 
@@ -69,16 +74,20 @@ import { PlaceSuggestions } from './place-suggestions';
       <form class="input" (ngSubmit)="send(draft)">
         <textarea [(ngModel)]="draft" name="draft" rows="2" placeholder="Tell the planner what you want…"
                   (keydown.enter)="$event.preventDefault(); send(draft)"></textarea>
-        <button mat-flat-button type="submit" [disabled]="!draft.trim() || store.loading()">Send</button>
+        <button mat-flat-button type="submit" [disabled]="!draft.trim() || store.loading()">
+          {{ store.loading() ? 'Working…' : 'Send' }}
+        </button>
       </form>
     } @else {
       <div class="empty">Create or select a trip to start planning</div>
     }`,
   styles: [`
     :host{display:flex;flex-direction:column;height:100%;min-height:0}
-    .log{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:10px}
-    .msg{max-width:80%;padding:10px 14px;border-radius:12px;background:#f1f0ec}
+    .log{flex:1;min-height:0;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:10px}
+    .msg{flex-shrink:0;max-width:80%;padding:10px 14px;border-radius:12px;background:#f1f0ec}
     .msg.user{align-self:flex-end;background:#dbe7f5}
+    .loading{display:flex;align-items:center;align-self:flex-start;gap:10px;color:#555}
+    .loading mat-spinner{flex-shrink:0}
     .hint{color:#888}
     .question{padding:8px 16px;border-top:1px solid #eee;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
     .q-prompt{font-weight:500}
@@ -101,12 +110,20 @@ export class ChatPanel {
   private lastDecision?: SuggestionDecision;
 
   constructor() {
-    // Scroll to the newest message whenever the list changes
-    effect(() => {
+    // Measure after the updated messages and controls have been rendered.
+    afterRenderEffect(() => {
       this.store.messages();
-      const el = this.log()?.nativeElement;
-      if (el) queueMicrotask(() => el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }));
+      this.store.loading();
+      this.store.pendingQuestion();
+      this.error();
+      this.scrollToLatest();
     });
+  }
+
+  // Markdown renders asynchronously and can increase the height after Angular's render.
+  scrollToLatest() {
+    const el = this.log()?.nativeElement;
+    el?.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }
 
   // Send a chip answer; also stored directly under the question's field
