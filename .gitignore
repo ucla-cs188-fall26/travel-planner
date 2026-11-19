@@ -1,6 +1,16 @@
-node_modules/
+# Secrets
+.env
+
+# Python
 .venv/
-*.venv/
 __pycache__/
 *.pyc
-.env
+
+# Editor settings
+/.vscode/
+
+# Mac
+.DS_Store
+
+#Node
+node_modules/

@@ -3,18 +3,19 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { TripStore } from '../core/trip-store';
 import { TripRepo } from '../core/trip-repo';
+import { PlanningNotes } from './planning-notes';
 
 // Bar above the calendar to indicate change status of "checking…", the suggested fix with Accept/Revert, or an error note
 @Component({
   selector: 'app-change-banner',
-  imports: [MatButtonModule, MatProgressBarModule],
+  imports: [MatButtonModule, MatProgressBarModule, PlanningNotes],
   template: `
     @if (store.changeStatus() === 'pending') {  <!-- LLM response wait -->
       <div class="banner info">Checking your change with the planner…</div>
       <mat-progress-bar mode="indeterminate" />
     } @else if (store.changeStatus() === 'error') {                                  <!-- Backend failed: user decides -->
         <div class="banner error">
-            <div>Couldn't get a suggestion for this change.</div>
+            <div>{{ store.changeError() ?? "Couldn't get a suggestion for this change." }}</div>
             <div class="actions">
             <button mat-stroked-button (click)="undoChange()">Undo Change</button>
             <button mat-flat-button (click)="keepChange()">Keep My Change</button>
@@ -22,8 +23,11 @@ import { TripRepo } from '../core/trip-repo';
         </div>
     } @else if (store.preview(); as p) { <!-- Proposal awaiting a decision -->
       <div class="banner">
-        <div><strong>Suggested fix:</strong> {{ p.summary }}</div>
-        @for (w of p.warnings; track w) { <div class="warn">⚠️ {{ w }}</div> }
+        <div class="preview-heading">
+          <strong>Suggested update ready</strong>
+          <app-planning-notes [warnings]="p.warnings" [summary]="p.summary"
+                              title="Schedule change details" label="Details & warnings" />
+        </div>
         <div class="actions">
           <button mat-stroked-button (click)="revert()">Revert</button>
           <button mat-flat-button (click)="accept()">Accept</button>
@@ -32,7 +36,8 @@ import { TripRepo } from '../core/trip-repo';
     }`,
   styles: [`.banner{background:#fff8e1;border-bottom:1px solid #f0d58a;padding:8px 10px;font-size:13px}
             .info{background:#eef4fb;border-color:#c9dcf2}.error{background:#fdecea;border-color:#f5c2bd}
-            .warn{color:#8a5a00}.actions{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}`],
+            .preview-heading{display:flex;align-items:center;justify-content:space-between;gap:4px;flex-wrap:wrap}
+            .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}`],
 })
 export class ChangeBanner {
   store = inject(TripStore);

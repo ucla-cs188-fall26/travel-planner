@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, viewChild } from '@angular/core';
+import { Component, computed, DestroyRef, effect, inject, untracked, viewChild } from '@angular/core';
 import { FullCalendarModule, FullCalendarComponent, CalendarOptions } from '@fullcalendar/angular';
 import themePlugin from '@fullcalendar/angular/themes/classic';
 import timeGridPlugin from '@fullcalendar/angular/timegrid';
@@ -8,7 +8,9 @@ import { MatButtonModule } from '@angular/material/button';
 import { TripStore } from '../core/trip-store';
 import { TripRepo } from '../core/trip-repo';
 import { ChangeLoop } from '../core/change-loop';
-import { MatIconModule } from '@angular/material/icon';
+import { MatDialog, MatDialogRef } from '@angular/material/dialog';
+import { StopDetailsData, StopDetailsDialog } from './stop-details-dialog';
+import { PlanningNotes } from './planning-notes';
 
 // Converts FullCalendar returned value into a set format
 function toLocal(v: unknown): string {
@@ -24,47 +26,35 @@ const CATEGORY_COLORS: Record<string, string> = {
 // Top-right pane: time grid for the trip days, with drag, resize and click-to-select
 @Component({
   selector: 'app-calendar-panel',
-  imports: [FullCalendarModule, MatButtonModule, MatIconModule],
+  imports: [FullCalendarModule, MatButtonModule, PlanningNotes],
   template: `
     <div class="bar">  <!-- Small toolbar above the calendar -->
+      @if (planningWarnings().length) { <app-planning-notes [warnings]="planningWarnings()" /> }
       <button mat-button (click)="store.undo(); repo.saveActiveStops()">Undo</button>
     </div>
-    @if (store.selectedStop(); as s) {                                                   <!-- Details for the clicked stop -->
-      <div class="details">
-        <div class="d-title">{{ s.title }}</div>
-        <div class="d-meta">
-          {{ s.start.slice(11, 16) }}–{{ s.end.slice(11, 16) }} · Day {{ s.day }}
-          @if (s.priceRange) { · {{ s.priceRange }} }
-          @if (s.place.address) { · {{ s.place.address }} }
-        </div>
-        @if (s.notes) { <div class="d-notes">{{ s.notes }}</div> }
-        <div class="d-actions">
-          @if (s.sourceUrl) { <a [href]="s.sourceUrl" target="_blank" rel="noopener">Source ↗</a> }
-          <button mat-button (click)="toggleLock(s.id, !s.locked)">
-            <mat-icon>{{ s.locked ? 'lock' : 'lock_open' }}</mat-icon> {{ s.locked ? 'Unlock' : 'Lock as must-do' }}
-          </button>
-          <button mat-button (click)="store.selectedStopId.set(null)">Close</button>
-        </div>
-      </div>
-    }
     @if (store.activeTrip()) {
       <full-calendar [options]="options()" /> 
     } @else {
       <div class="empty">Select or create a trip</div>
     }`,
   styles: [`:host{display:flex;flex-direction:column;flex:1;min-height:0}
-            .bar{display:flex;justify-content:flex-end;padding:2px 6px}
+            .bar{display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:4px;padding:2px 6px}
+            .bar app-planning-notes{margin-right:auto}
             full-calendar{flex:1;min-height:0;font-size:12px}
-            .empty{padding:24px;color:#888}
-            .details{padding:6px 10px;border-bottom:1px solid #eee;font-size:12px}
-            .d-title{font-weight:600}.d-meta{color:#555}.d-notes{margin-top:2px}
-            .d-actions{display:flex;gap:6px;align-items:center;margin-top:2px}`],
+            .empty{padding:24px;color:#888}`],
 })
 export class CalendarPanel {
   store = inject(TripStore); 
   private cal = viewChild(FullCalendarComponent); 
   repo = inject(TripRepo);
   private change = inject(ChangeLoop);
+  private dialog = inject(MatDialog);
+  private detailsDialog: MatDialogRef<StopDetailsDialog> | null = null;
+  private tripStart = computed(() => this.store.activeTrip()?.startDate);
+  planningWarnings = computed(() => {
+    const warnings = this.store.activeTrip()?.details['plannerWarnings'];
+    return Array.isArray(warnings) ? warnings.filter((w): w is string => typeof w === 'string') : [];
+  });
 
   // Stops - calendar events (recomputes when stops, selection or preview change)
   private events = computed(() => {
@@ -75,7 +65,7 @@ export class CalendarPanel {
       title: s.locked ? `🔒 ${s.title}` : s.title,  // Lock icon marks anchors
       start: s.start,
       end: s.end,
-      editable: !s.locked && !previewing,  // Anchors and previews can't be dragged
+      editable: !s.locked && !previewing && !this.store.loading(),
       color: CATEGORY_COLORS[s.category] ?? '#3d5a80',
       className: [s.id === sel ? 'is-selected' : '', previewing ? 'is-preview' : ''].join(' ').trim(),
     }));
@@ -115,11 +105,37 @@ export class CalendarPanel {
   });
 
   constructor() {
-    //when a stop is selected from the map, jump the calendar to that stop's day
+    inject(DestroyRef).onDestroy(() => this.detailsDialog?.close());
+    // initialDate is only consumed on mount. A newly selected/generated trip needs an explicit jump.
+    effect(() => {
+      const startDate = this.tripStart();
+      const api = this.cal()?.getApi();
+      if (startDate && api) api.gotoDate(startDate);
+    });
+    // Calendar and map selections share a modal; no details panel consumes calendar height.
     effect(() => {
       const s = this.store.selectedStop();
+      const trip = this.store.activeTrip();
       const api = this.cal()?.getApi();
       if (s && api) api.gotoDate(s.start.slice(0, 10));
+      untracked(() => {
+        if (!s || !trip) { this.detailsDialog?.close(); return; }
+        const current = this.detailsDialog?.componentInstance.data;
+        if (current?.tripId === trip.id && current.stop.id === s.id) return;
+        this.detailsDialog?.close();
+        const ref = this.dialog.open<StopDetailsDialog, StopDetailsData>(StopDetailsDialog, {
+          data: { tripId: trip.id, startDate: trip.startDate, endDate: trip.endDate, stop: s },
+          width: '560px', maxWidth: 'calc(100vw - 32px)', maxHeight: '90vh', autoFocus: 'dialog',
+        });
+        this.detailsDialog = ref;
+        ref.afterClosed().subscribe(() => {
+          if (this.detailsDialog !== ref) return;
+          this.detailsDialog = null;
+          if (this.store.activeTripId() === trip.id && this.store.selectedStopId() === s.id) {
+            this.store.selectedStopId.set(null);
+          }
+        });
+      });
     });
   }
 
@@ -139,10 +155,4 @@ export class CalendarPanel {
     });
   }
 
-  // Lock/unlock a stop as an anchor
-  toggleLock(id: string, locked: boolean) {
-    this.store.updateStop(id, { locked });
-    this.store.clearEditSnapshot();
-    this.repo.saveActiveStops();
-  }
 }
