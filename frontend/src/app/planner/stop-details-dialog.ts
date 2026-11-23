@@ -9,6 +9,7 @@ import { differenceInCalendarDays, format, isValid, parseISO } from 'date-fns';
 import { TripStore } from '../core/trip-store';
 import { TripRepo } from '../core/trip-repo';
 import { ChangeLoop } from '../core/change-loop';
+import { RoutesService } from '../core/routes';
 import { Stop } from '../core/models';
 
 export interface StopDetailsData {
@@ -33,7 +34,14 @@ function clockMinutes(value: string): number {
         @if (stop(); as s) {
           <div class="place">{{ s.place.name }}</div>
           @if (s.place.address) { <div class="address">{{ s.place.address }}</div> }
-          <div class="meta">Day {{ s.day }} @if (s.priceRange) { · {{ s.priceRange }} }</div>
+          <div class="meta">
+            Day {{ s.day }}
+            @if (s.priceRange) { · {{ s.priceRange }} }
+            @if (legIn(); as leg) { · {{ travelMinutes(leg.seconds) }} min from previous stop }   <!-- ← NEW -->
+          </div>
+          @for (w of travelWarnings(); track w.fromId + w.toId) {                                 <!-- ← NEW -->
+            <p class="notice travel">⚠️ {{ w.message }}</p>
+          }
           @if (s.notes) { <p class="notes">{{ s.notes }}</p> }
           @if (s.sourceUrl) { <a [href]="s.sourceUrl" target="_blank" rel="noopener">View source ↗</a> }
 
@@ -91,6 +99,7 @@ function clockMinutes(value: string): number {
     .time-heading{font-weight:600;margin-top:24px}.time-help{font-size:13px;color:#666;margin:4px 0 16px}
     .date{width:100%}.times{display:flex;gap:12px}.times>*{flex:1;min-width:0}
     .notice{background:#fff8e1;padding:10px 12px;font-size:13px;line-height:1.5;border-radius:6px}
+    .notice.travel{margin:8px 0 0}
     .duration{font-size:13px;color:#555;margin-top:-8px}.lock{margin-top:12px}
     .error{color:#b00020;font-size:13px;line-height:1.5}
     @media(max-width:420px){.times{flex-direction:column;gap:0}}
@@ -102,6 +111,7 @@ export class StopDetailsDialog {
   private store = inject(TripStore);
   private repo = inject(TripRepo);
   private change = inject(ChangeLoop);
+  private routesSvc = inject(RoutesService);
   private fb = inject(FormBuilder);
   readonly saving = signal(false);
   readonly error = signal<string | null>(null);
@@ -109,6 +119,14 @@ export class StopDetailsDialog {
     ? this.store.stops().find(s => s.id === this.data.stop.id) ?? null : null);
   readonly blocked = computed(() => !this.stop() || this.store.loading() || !!this.store.preview()
     || this.store.changeStatus() !== 'idle');
+
+  // hop arriving at this stop, and travel warnings that involve it
+  readonly legIn = computed(() => { const s = this.stop(); return s ? this.routesSvc.legInto(s.id) : null; });
+  readonly travelWarnings = computed(() => {
+    const s = this.stop();
+    return s ? this.routesSvc.warnings().filter(w => w.fromId === s.id || w.toId === s.id) : [];
+  });
+  travelMinutes(seconds: number): number { return Math.max(1, Math.round(seconds / 60)); }
 
   readonly form = this.fb.nonNullable.group({
     date: [this.data.stop.start.slice(0, 10), Validators.required],

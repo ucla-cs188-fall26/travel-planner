@@ -4,12 +4,13 @@ import { TripList } from './trip-list';
 import { ChatPanel } from './chat-panel';
 import { CalendarPanel } from './calendar-panel';
 import { MapPanel } from './map-panel';
-import { ChangeBanner } from './change-banner'
+import { ChangeBanner } from './change-banner';
+import { TravelWarnings } from './travel-warnings';
 
 // Three-pane planner: trip list | chat | calendar over map
 @Component({
   selector: 'app-planner-page',
-  imports: [SplitComponent, SplitAreaComponent, TripList, CalendarPanel, MapPanel, ChatPanel, ChangeBanner],
+  imports: [SplitComponent, SplitAreaComponent, TripList, CalendarPanel, MapPanel, ChatPanel, ChangeBanner, TravelWarnings],
   template: `
     <as-split direction="horizontal" unit="percent" gutterSize="6">
       <as-split-area [size]="20" [minSize]="14"><app-trip-list /></as-split-area> <!-- list of trips -->
@@ -17,6 +18,7 @@ import { ChangeBanner } from './change-banner'
       <as-split-area [size]="25" [minSize]="20"> 
         <as-split direction="vertical" unit="percent" gutterSize="6">
           <as-split-area [size]="50"> <!-- calendar view for active trip with banner -->
+            <app-travel-warnings />
             <app-change-banner />
             <app-calendar-panel />
           </as-split-area>
