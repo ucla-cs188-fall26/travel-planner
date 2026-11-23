@@ -41,17 +41,33 @@ cd travel-planner
 
 From the repository root:
 
+**macOS / Linux**
+
 ```sh
 python3 -m venv backend/.venv
 backend/.venv/bin/python -m pip install -r backend/requirements.txt
 ```
 
+**Windows**
+
+```bat
+py -3.11 -m venv backend\.venv
+backend\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+```
+
 If `backend/.env` does not exist, copy the example:
+
+**macOS / Linux**
 
 ```sh
 cp backend/.env.example backend/.env
 ```
 
+**Windows**
+
+```bat
+copy backend\.env.example backend\.env
+```
 Edit `backend/.env` and set `API_KEY`, `BASE_URL`, and `MODEL` for your provider.
 The backend loads this file independently of the shell's working directory. The LLM API key
 stays in the backend and is never returned by health checks.
@@ -60,9 +76,18 @@ stays in the backend and is never returned by health checks.
 
 If these files do not already exist, create them from the example:
 
+**macOS / Linux**
+
 ```sh
 cp frontend/src/environments/environment.example.ts frontend/src/environments/environment.ts
 cp frontend/src/environments/environment.example.ts frontend/src/environments/environment.development.ts
+```
+
+**Windows**
+
+```bat
+copy frontend\src\environments\environment.example.ts frontend\src\environments\environment.ts
+copy frontend\src\environments\environment.example.ts frontend\src\environments\environment.development.ts
 ```
 
 In **both files**, replace `googleMapsApiKey`, `googleMapId`, and the `firebase` object
@@ -75,11 +100,19 @@ These local configuration files and `backend/.env` are Git-ignored.
 
 Terminal 1, from the repository root:
 
+**macOS / Linux**
+
 ```sh
 backend/.venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-Terminal 2, from the repository root:
+**Windows**
+
+```bat
+backend\.venv\Scripts\python.exe -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+Terminal 2, from the repository root (same on all platforms):
 
 ```sh
 cd frontend
@@ -92,7 +125,7 @@ FastAPI on port 8000. [The health endpoint](http://127.0.0.1:8000/api/health) ca
 that the backend is running and LLM settings are present; it does not test a provider call.
 Keep both terminals running while trying the scenario below.
 
-## Core scenario walkthrough
+## Core Scenario Walkthrough
 
 **Goal:** Turn natural-language travel preferences into an editable itinerary that satisfies
 explicit scheduling constraints, with user approval of suggested places and schedule changes.
